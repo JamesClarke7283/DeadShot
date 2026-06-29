@@ -118,7 +118,7 @@ low-poly geometry + `MeshToonMaterial` + inverted-hull outlines.
 
 ### Phase 4 — Tacticals & Lethals
 
-- [ ] **4.1** `src/tacticals/` (one task, all grenade-like items share the throw + timer base
+- [x] **4.1** `src/tacticals/` (one task, all grenade-like items share the throw + timer base
       class):
   - `Throwable.ts` base (arc physics, cook timer, team check).
   - Tacticals: `Flashbang.ts` (screen white + audio deafen), `Smoke.ts` (particle cloud blocker),
