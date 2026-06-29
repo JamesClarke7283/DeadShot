@@ -37,6 +37,8 @@ export interface RaycastHit {
   object: THREE.Object3D;
   /** Set when the ray hit a damageable actor. */
   target?: DamageTarget;
+  /** Set by analytic worlds when the hit landed on the head region. */
+  headshot?: boolean;
 }
 
 /** World queries weapons/projectiles use for hit detection + splash. */

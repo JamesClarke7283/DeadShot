@@ -42,6 +42,7 @@ export class BotAI {
   private errorTimer = 0;
   private meleeCooldown = 0;
   private repathTimer = 0;
+  private selectTimer = 0;
   private readonly error = new THREE.Vector3();
   private readonly aimNoise: { x: number; y: number } = { x: 0, y: 0 };
 
@@ -71,7 +72,13 @@ export class BotAI {
 
   // ---- Target selection ----
   private selectTarget(bot: Bot, ctx: BotContext): Actor | null {
-    // Keep the current target if still valid.
+    // Throttle full reselection; keep the current target between scans (cheap).
+    this.selectTimer -= 1 / 60;
+    if (this.target && this.target.alive && this.selectTimer > 0) {
+      return this.target;
+    }
+    this.selectTimer = 0.2;
+    // Keep the current target if still valid + visible.
     if (this.target && this.target.alive && this.visible(bot, this.target, ctx)) {
       return this.target;
     }
@@ -96,7 +103,11 @@ export class BotAI {
     return best;
   }
 
-  /** Line-of-sight from the bot's eye to a target's eye. */
+  /**
+   * Line-of-sight from the bot's eye to a target's eye. Uses the cheap collision
+   * box raycast (solid cover) for occlusion rather than mesh raycasting the whole
+   * map every frame — much faster, and cover boxes are what should block sight.
+   */
   private visible(bot: Bot, target: Actor, ctx: BotContext): boolean {
     bot.eyePosition(_eye);
     target.eyePosition(_tgtEye);
@@ -104,10 +115,8 @@ export class BotAI {
     const dist = _dir.length();
     if (dist < 1e-3) return true;
     _dir.multiplyScalar(1 / dist);
-    const hit = ctx.world.raycast(_eye, _dir, dist + 0.5, bot.object3d);
-    if (!hit) return true;
-    if (hit.target === (target as unknown)) return true;
-    return hit.distance >= dist - 0.6; // first solid surface is past the target
+    const blocked = ctx.collision.raycastBoxes(_eye, _dir, dist - 0.6);
+    return blocked === null;
   }
 
   // ---- Combat ----

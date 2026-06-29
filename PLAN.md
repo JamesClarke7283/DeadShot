@@ -166,7 +166,7 @@ low-poly geometry + `MeshToonMaterial` + inverted-hull outlines.
 
 ### Phase 7 — Match, Teams, Modes
 
-- [ ] **7.1** `src/game/Match.ts` + `Team.ts` + `Spawner.ts` + `Scoreboard.ts` (single task, match
+- [x] **7.1** `src/game/Match.ts` + `Team.ts` + `Spawner.ts` + `Scoreboard.ts` (single task, match
       plumbing is one cohesive unit):
   - `Match.ts` — match lifecycle (warmup → live → end), 10-minute timer, score cap (100 kills TDM),
     per-mode rules injection, killfeed events, score-per-action (kill +100, headshot +25, assist
@@ -177,7 +177,7 @@ low-poly geometry + `MeshToonMaterial` + inverted-hull outlines.
   - **Verify:** 8v8 TDM runs to either 100 kills or 10 min, awards a winner, prints final
     scoreboard.
 
-- [ ] **7.2** `src/game/TDM.ts` + `src/game/FFA.ts` — mode rules (TDM: two teams, shared team score,
+- [x] **7.2** `src/game/TDM.ts` + `src/game/FFA.ts` — mode rules (TDM: two teams, shared team score,
       friendly fire off; FFA: everyone-vs-everyone, 100-kill cap, no teams). 100 HP, regen after 5 s
       out-of-damage, 3–5 s respawn delay. **Verify:** FFA match with 8 bots produces a single winner
       at 100 kills.

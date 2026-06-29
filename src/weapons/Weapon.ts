@@ -191,7 +191,7 @@ export class Weapon {
       if (
         target && target.alive && (this.shooter.team === "ffa" || target.team !== this.shooter.team)
       ) {
-        const headshot = target.isHead(hit.object);
+        const headshot = hit.headshot ?? target.isHead(hit.object);
         let dmg = damageAtRange(this.stats.range, this.stats.damage, hit.distance);
         if (headshot) dmg *= this.stats.headshotMultiplier;
         target.applyDamage({
