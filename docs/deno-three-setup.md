@@ -12,20 +12,35 @@ examples folder:
 {
   "imports": {
     "three": "npm:three@0.180.0",
-    "three/addons/": "npm:three@0.180.0/examples/jsm/"
+    // NOTE the leading slash after `npm:` — the `npm:/` subpath form is what lets
+    // Deno URL-parse the addon sub-path. Without it `deno check` fails.
+    "three/addons/": "npm:/three@0.180.0/examples/jsm/"
   }
 }
 ```
 
-Source files therefore use ordinary specifiers:
+### Typing (three ships no `.d.ts`)
+
+`three@0.180.0` ships no TypeScript declarations, so feature code imports THREE from a **typed
+barrel** rather than from `"three"` directly. `src/three.ts`:
 
 ```ts
-import * as THREE from "three";
-import { PointerLockControls } from "three/addons/controls/PointerLockControls.js";
+// @ts-types="npm:@types/three@0.180.0"
+export * from "three";
 ```
 
-Deno resolves these through its npm cache. The first run downloads the package (`deno cache` / first
-`deno task`); afterwards everything works **offline**.
+Addons get one barrel each under `src/vendor/`, e.g. `PointerLockControls.ts`:
+
+```ts
+// @ts-types="npm:@types/three@0.180.0/examples/jsm/controls/PointerLockControls.d.ts"
+export * from "three/addons/controls/PointerLockControls.js";
+```
+
+Feature code then uses `import * as THREE from "../three.ts"` and
+`import { PointerLockControls } from "../vendor/PointerLockControls.ts"`. Importing `"three"`
+directly makes THREE `any` (every callback param becomes an implicit-any error). esbuild ignores the
+`@ts-types` comment and bundles the real runtime module. Deno resolves the npm packages through its
+cache; the first run downloads them, after which everything works **offline**.
 
 ## How the browser gets JavaScript
 

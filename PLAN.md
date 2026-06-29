@@ -66,7 +66,7 @@ low-poly geometry + `MeshToonMaterial` + inverted-hull outlines.
 
 ### Phase 2 — Cartoon Characters (with faces)
 
-- [ ] **2.1** `src/characters/CharacterFactory.ts` — async loader that attempts to fetch Quaternius
+- [x] **2.1** `src/characters/CharacterFactory.ts` — async loader that attempts to fetch Quaternius
       "Ultimate Characters" CC0 GLTF from `/public/models/quaternius/` (populated by
       `deno task fetch-assets`); on any fetch/load failure, falls back to `ProceduralHuman.build()`.
   - `ProceduralHuman.ts` — builds a humanoid from low-poly primitives (head sphere, torso/limb
@@ -78,7 +78,7 @@ low-poly geometry + `MeshToonMaterial` + inverted-hull outlines.
   - **Verify:** spawn one bot per team in the test scene; both have visible faces; reloading with no
     network falls back to procedural without errors.
 
-- [ ] **2.2** `docs/assets-attribution.md` listing Quaternius (CC0) + Kenney (CC0) packs, music
+- [x] **2.2** `docs/assets-attribution.md` listing Quaternius (CC0) + Kenney (CC0) packs, music
       tracks + licenses, and the procedural fallback guarantee.
 
 ### Phase 3 — Weapons

@@ -37,7 +37,21 @@ export class Camera {
   }
 
   lock(): void {
-    if (!this.controls.isLocked) this.controls.lock();
+    if (this.controls.isLocked) return;
+    // Request pointer lock ourselves (not controls.lock()) so we can swallow the
+    // promise rejection browsers raise when there's no user activation. The
+    // controls' pointerlockchange listener still flips isLocked on success.
+    const el = this.domElement as HTMLElement & {
+      requestPointerLock?: () => Promise<void> | void;
+    };
+    try {
+      const r = el.requestPointerLock?.();
+      if (r && typeof (r as Promise<void>).catch === "function") {
+        (r as Promise<void>).catch(() => {});
+      }
+    } catch {
+      // ignore — lock will be retried on the next click
+    }
   }
 
   unlock(): void {

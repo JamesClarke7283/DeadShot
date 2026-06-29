@@ -18,6 +18,8 @@ import { Clock } from "./Clock.ts";
 import { AssetLoader } from "./AssetLoader.ts";
 import { createToonMaterial } from "../render/ToonMaterial.ts";
 import { outlineHierarchy } from "../render/OutlinePass.ts";
+import { createCharacter } from "../characters/CharacterFactory.ts";
+import type { Character } from "../characters/Character.ts";
 
 export enum GameState {
   Boot = "Boot",
@@ -153,7 +155,9 @@ export class Game {
     document.getElementById("loading")?.classList.add("hidden");
   }
 
-  // ---- Built-in Phase 1 sandbox (replaced by the match in later phases) ----
+  // ---- Built-in Phase 1/2 sandbox (replaced by the match in later phases) ----
+  private sandboxChars: Character[] = [];
+
   private installSandboxState(): void {
     const move = new THREE.Vector3();
     const forward = new THREE.Vector3();
@@ -168,9 +172,11 @@ export class Game {
           fogFar: 400,
         });
         this.buildSandbox();
+        this.spawnSandboxCharacters();
         this.camera.setPosition(0, 1.6, 8);
       },
       update: (dt) => {
+        for (const c of this.sandboxChars) c.update(dt);
         if (!this.camera.isLocked) return;
         const speed = (this.input.isDown("sprint") ? 9 : 5.5) * dt;
         const fb = this.input.axis("back", "forward");
@@ -188,6 +194,25 @@ export class Game {
         }
       },
     });
+  }
+
+  private async spawnSandboxCharacters(): Promise<void> {
+    for (const c of this.sandboxChars) {
+      this.scene.dynamicRoot.remove(c.root);
+      c.dispose();
+    }
+    this.sandboxChars = [];
+    const blue = await createCharacter(this.assets, { team: "blue" });
+    blue.root.position.set(-1.6, 0, 4);
+    blue.play("idle");
+    this.scene.add(blue.root);
+    this.sandboxChars.push(blue);
+
+    const red = await createCharacter(this.assets, { team: "red" });
+    red.root.position.set(1.6, 0, 4);
+    red.play("run");
+    this.scene.add(red.root);
+    this.sandboxChars.push(red);
   }
 
   private buildSandbox(): void {
