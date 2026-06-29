@@ -14,7 +14,7 @@
   },
   "imports": {
     "three": "npm:three@0.180.0",
-    "three/addons/": "npm:three@0.180.0/examples/jsm/",
+    "three/addons/": "npm:/three@0.180.0/examples/jsm/",
     "esbuild": "npm:esbuild@0.24.2",
     "@luca/esbuild-deno-loader": "jsr:@luca/esbuild-deno-loader@0.11.1",
     "@webview/webview": "jsr:@webview/webview@0.9.0",
@@ -41,7 +41,7 @@
     "indentWidth": 2,
     "semiColons": true,
     "singleQuote": false,
-    "exclude": ["public/vendor/", "docs/"]
+    "exclude": ["public/vendor/", "PLAN.md", "CREATE_PLAN.md", ".loop-prompt.md"]
   },
   "exclude": [
     "public/models",

@@ -42,7 +42,7 @@ low-poly geometry + `MeshToonMaterial` + inverted-hull outlines.
 
 ### Phase 1 — Core Engine
 
-- [ ] **1.1** Build the engine core in `src/core/` — single task, all files are tightly coupled:
+- [x] **1.1** Build the engine core in `src/core/` — single task, all files are tightly coupled:
   - `Game.ts` — top-level orchestrator with state machine
     (`Boot / MainMenu / ClassEditor / PreMatch / Playing / PostMatch`), `requestAnimationFrame`
     loop, fixed-step accumulator for simulation.
@@ -58,7 +58,7 @@ low-poly geometry + `MeshToonMaterial` + inverted-hull outlines.
   - **Verify:** boot into a lit scene with a toon-shaded cube; pointer lock engaged on click; WASD
     moves the camera; FPS counter in corner.
 
-- [ ] **1.2** Cartoon render pipeline in `src/render/` — `ToonMaterial.ts` (factory around
+- [x] **1.2** Cartoon render pipeline in `src/render/` — `ToonMaterial.ts` (factory around
       `MeshToonMaterial` with a 3-step gradient ramp texture), `OutlinePass.ts` (inverted-hull
       back-face outline via `BackSide` + vertex-normal extrude), `Lighting.ts` (hemisphere +
       directional sun with cascaded shadow map). **Verify:** cube + capsule have black outlines and

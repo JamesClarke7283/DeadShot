@@ -46,3 +46,15 @@ Check these before web searching (load with the Read tool as needed):
   cache. esbuild keeps a service process alive; call `esbuild.stop()` on shutdown (the long-running
   server just leaves it up).
 - `three` REVISION is `180` for `three@0.180.0`.
+- **Typing three under Deno:** three ships NO `.d.ts`. Import THREE from the typed barrel
+  `src/three.ts` (which has `// @ts-types="npm:@types/three@0.180.0"` above
+  `export * from "three"`). Addons go through `src/vendor/<Name>.ts` barrels with
+  `// @ts-types="npm:@types/three@0.180.0/examples/jsm/.../<Name>.d.ts"`. Never
+  `import ... from "three"` directly in feature code, or THREE becomes `any` and every callback
+  param is an implicit-any error.
+- **Import map for addons:** `"three/addons/": "npm:/three@0.180.0/examples/jsm/"` — note the
+  leading slash after `npm:` (the `npm:/` subpath form). Without it `deno check` fails to URL-parse
+  the addon sub-path.
+- PointerLockControls (r180): `controls.object` is typed `Object3D`; expose the `PerspectiveCamera`
+  directly instead of casting. `moveForward/moveRight` move parallel to the XZ plane (keeps eye
+  height). `pointerSpeed` = sensitivity.
