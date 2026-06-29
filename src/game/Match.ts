@@ -38,6 +38,23 @@ import type { EquipmentContext } from "../tacticals/Equipment.ts";
 import type { NetClient } from "../net/NetClient.ts";
 import { RemoteActor } from "./RemoteActor.ts";
 import type { BotStateMsg, LobbyPlayer, PlayerStateMsg } from "../net/protocol.ts";
+import { type ActorSnap, type ReplayFrame, ReplayRecorder } from "./ReplayRecorder.ts";
+import type { AnimName } from "../characters/Character.ts";
+
+/** A captured death replay (last seconds before the player died). */
+export interface KillcamData {
+  frames: ReplayFrame[];
+  killerId: number | undefined;
+  victimId: number;
+  killerName: string;
+}
+
+/** A captured "best play" (the player's longest killstreak window). */
+export interface BestPlayData {
+  frames: ReplayFrame[];
+  kills: number;
+  playerId: number;
+}
 
 export type MatchState = "warmup" | "live" | "end";
 
@@ -143,6 +160,13 @@ export class Match {
   private isHost = false;
   private remotes = new Map<number, RemoteActor>();
   private netSendTimer = 0;
+
+  // ---- Replay (killcam + best play) ----
+  private readonly recorder = new ReplayRecorder(10, 30);
+  private playerStreak = 0;
+  private streakStartT = 0;
+  killcam: KillcamData | null = null;
+  bestPlay: BestPlayData | null = null;
   // Host bot ids start far above any plausible server-assigned connection id so
   // they never collide with player ids over a long-lived relay server.
   private static readonly BOT_BASE = 1_000_000;
@@ -322,6 +346,14 @@ export class Match {
     }
   }
 
+  /** Immediately respawn the local player (used when the killcam is skipped). */
+  respawnPlayerNow(): void {
+    if (!this.player || this.player.alive) return;
+    const sp = this.spawner.pick(this.player.team, this.enemyPositions(this.player.team));
+    this.placeActor(this.player, sp.position, sp.yaw);
+    this.prevAlive.set(this.player.id, true);
+  }
+
   get timeLeft(): number {
     return Math.max(0, this.mode.timeLimit - this.elapsed);
   }
@@ -391,11 +423,13 @@ export class Match {
     this.updateAmmoPickups(dt);
     this.updateInteractables(dt);
     this.updateStreaks(dt);
+    this.recorder.record(this.elapsed, this.snapshotActors());
 
     // Win check (a nuke streak may have already ended the match above).
     if (this.state !== "live") return;
     const win = this.mode.checkWin(this.scoreboard, this.elapsed);
     if (win.over) {
+      this.finalizeBestPlay(); // capture a streak the player was still on
       this.state = "end";
       this.winner = win.winner;
       this.winReason = win.reason;
@@ -431,6 +465,7 @@ export class Match {
     this.addKillfeed(killerId, victim, info?.weaponId, headshot);
     this.dropVictimWeapon(victim);
     this.maybeScavenger(victim);
+    this.trackPlayerKD(killerId, victim.id);
     if (this.net) this.net.sendDeath(victim.id, killerId, info?.weaponId, headshot);
   }
 
@@ -452,6 +487,7 @@ export class Match {
     this.addKillfeed(killerId, victim, weaponId, headshot);
     this.dropVictimWeapon(victim);
     this.maybeScavenger(victim);
+    this.trackPlayerKD(killerId, victimId);
     const ra = this.remotes.get(victimId);
     if (ra) ra.markDead();
     this.prevAlive.set(victimId, false);
@@ -503,6 +539,102 @@ export class Match {
     ) {
       this.spawnAmmoPickup(victim);
     }
+  }
+
+  // ---- Replay (killcam + best play) ----
+
+  /** Track the local player's killstreak; on their death capture the killcam. */
+  private trackPlayerKD(killerId: number | undefined, victimId: number): void {
+    const p = this.player;
+    if (!p) return;
+    if (killerId === p.id && killerId !== victimId) {
+      if (this.playerStreak === 0) this.streakStartT = Math.max(0, this.elapsed - 1);
+      this.playerStreak++;
+    }
+    if (victimId === p.id) {
+      this.finalizeBestPlay();
+      this.captureKillcam(victimId, killerId);
+      this.playerStreak = 0;
+    }
+  }
+
+  private finalizeBestPlay(): void {
+    if (!this.player) return;
+    if (this.playerStreak >= 2 && (!this.bestPlay || this.playerStreak > this.bestPlay.kills)) {
+      const frames = this.recorder.window(this.streakStartT, this.elapsed);
+      if (frames.length >= 2) {
+        this.bestPlay = { frames, kills: this.playerStreak, playerId: this.player.id };
+      }
+    }
+  }
+
+  private captureKillcam(victimId: number, killerId: number | undefined): void {
+    const frames = this.recorder.recent(this.elapsed, 4);
+    if (frames.length < 2) return;
+    let killerName = "the enemy";
+    if (killerId !== undefined && killerId !== victimId) killerName = this.scoreName(killerId);
+    this.killcam = { frames, killerId, victimId, killerName };
+  }
+
+  private snapshotActors(): ActorSnap[] {
+    const out: ActorSnap[] = [];
+    for (const a of this.actorList) out.push(this.snapOf(a));
+    return out;
+  }
+
+  private snapOf(a: Actor): ActorSnap {
+    const feet = (a as Player | Bot | RemoteActor).feet;
+    let yaw = 0;
+    let anim: AnimName = "idle";
+    let weaponId = "m4";
+    if (a instanceof Player) {
+      if (this.camera) {
+        const d = this.camera.getLookDirection(_snapDir);
+        yaw = Math.atan2(d.x, d.z);
+      }
+      const moving = !!this.input &&
+        (this.input.axis("back", "forward") !== 0 || this.input.axis("left", "right") !== 0);
+      const firing = !!this.input && this.input.isDown("fire");
+      anim = !a.alive ? "die" : firing ? "shoot" : moving ? "run" : "idle";
+      weaponId = a.weapon.def.id;
+    } else if (a instanceof RemoteActor) {
+      yaw = a.yaw;
+      anim = a.anim;
+      weaponId = a.weaponId;
+    } else {
+      const b = a as Bot;
+      yaw = b.yaw;
+      anim = !b.alive ? "die" : b.firing ? "shoot" : b.moving ? "run" : "idle";
+      weaponId = b.weapon.def.id;
+    }
+    return {
+      id: a.id,
+      team: a.team,
+      name: this.scoreName(a.id),
+      isPlayer: a === (this.player as unknown),
+      x: feet.x,
+      y: feet.y,
+      z: feet.z,
+      yaw,
+      alive: a.alive,
+      anim,
+      weaponId,
+    };
+  }
+
+  private scoreName(id: number): string {
+    try {
+      return this.scoreboard.get(id).name;
+    } catch {
+      return "?";
+    }
+  }
+
+  /** Read + clear the pending killcam (Game consumes it once on death). */
+  takeKillcam(): KillcamData | null {
+    const k = this.killcam;
+    this.killcam = null;
+    return k;
   }
 
   private spawnAmmoPickup(victim: Actor): void {
@@ -970,12 +1102,16 @@ export class Match {
     }
     this.remotes.clear();
     this.net?.clearHandlers();
+    this.recorder.clear();
+    this.killcam = null;
     this.actorList = [];
     this.pool?.clear();
     this.vfx?.clear();
     this.screen.clear();
   }
 }
+
+const _snapDir = new THREE.Vector3();
 
 /** Recursively dispose geometries/materials under an object (for pickups). */
 function disposeObject(obj: THREE.Object3D): void {

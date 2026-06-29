@@ -180,6 +180,11 @@ export class Player implements Actor {
     this.viewmodel.setWeapon(def, this.camoColor, attachments);
   }
 
+  /** Hide/show the first-person viewmodel (used by the killcam). */
+  setViewmodelVisible(v: boolean): void {
+    this.viewmodel.setVisible(v);
+  }
+
   // ---- Actor / DamageTarget ----
   position(out: THREE.Vector3): THREE.Vector3 {
     return out.copy(this.feet).setY(this.feet.y + 1.0);

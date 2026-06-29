@@ -26,7 +26,8 @@ import { LobbyMenu, type LobbyStartPayload } from "../ui/LobbyMenu.ts";
 import { HUD } from "../ui/HUD.ts";
 import { DevConsole } from "../ui/DevConsole.ts";
 import { button, el } from "../ui/dom.ts";
-import { Match, type MatchAudio } from "../game/Match.ts";
+import { type BestPlayData, type KillcamData, Match, type MatchAudio } from "../game/Match.ts";
+import { chaseView, killcamView, Replay } from "../game/Replay.ts";
 import { TDM } from "../game/TDM.ts";
 import { FFA } from "../game/FFA.ts";
 import { getWeapon } from "../weapons/WeaponDefinition.ts";
@@ -93,7 +94,16 @@ export class Game {
     blue: number;
     red: number;
     mode: "tdm" | "ffa";
+    bestPlay: BestPlayData | null;
   } | null = null;
+
+  // Killcam (in-match) + best-play replay (post-match).
+  private killcam: Replay | null = null;
+  private killcamData: KillcamData | null = null;
+  private killcamOverlay: HTMLElement | null = null;
+  private bestPlay: Replay | null = null;
+  private bestPlayData: BestPlayData | null = null;
+  private bestPlayOverlay: HTMLElement | null = null;
   private pausePanel: HTMLElement | null = null;
   private postPanel: HTMLElement | null = null;
   private audioStarted = false;
@@ -272,6 +282,7 @@ export class Game {
       },
       update: (dt) => this.updatePlaying(dt),
       exit: () => {
+        this.endKillcam();
         this.hud.hide();
         this.touch.setVisible(false);
         this.match?.dispose();
@@ -288,7 +299,11 @@ export class Game {
 
     this.registerState(GameState.PostMatch, {
       enter: () => this.showPostMatch(),
-      exit: () => this.removePostMatch(),
+      update: (dt) => this.updatePostMatch(dt),
+      exit: () => {
+        this.endBestPlay();
+        this.removePostMatch();
+      },
     });
   }
 
@@ -423,6 +438,16 @@ export class Game {
     this.touch.update();
     m.update(dt);
 
+    // Killcam: start on death, then own the frame until respawn / skip.
+    if (!this.killcam) {
+      const kc = m.takeKillcam();
+      if (kc) this.beginKillcam(kc);
+    }
+    if (this.killcam) {
+      this.updateKillcam(dt);
+      return;
+    }
+
     const p = m.player;
     if (!p) return;
 
@@ -548,6 +573,7 @@ export class Game {
         blue,
         red,
         mode: m.modeId,
+        bestPlay: m.bestPlay, // frames captured before the match is disposed
       };
       this.setState(GameState.PostMatch);
     }
@@ -559,6 +585,112 @@ export class Game {
     if (m.player && m.player.id === id) return m.player.feet;
     const bot = m.bots.find((b) => b.id === id);
     return bot ? bot.feet : null;
+  }
+
+  // ---- Killcam + best-play replay ----
+  private buildReplayOverlay(title: string, hint: string, color: string): HTMLElement {
+    return el("div", {
+      parent: this.uiRoot,
+      style: {
+        position: "fixed",
+        left: "0",
+        right: "0",
+        bottom: "56px",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: "6px",
+        zIndex: "80",
+        pointerEvents: "none",
+        fontFamily: "'Segoe UI', system-ui, sans-serif",
+      },
+      children: [
+        el("div", {
+          text: title,
+          style: { font: "900 30px system-ui", color, textShadow: "3px 3px 0 #000" },
+        }),
+        el("div", {
+          text: hint,
+          style: { font: "700 14px system-ui", color: "#cdeb6e", letterSpacing: "0.08em" },
+        }),
+      ],
+    });
+  }
+
+  private beginKillcam(kc: KillcamData): void {
+    this.killcamData = kc;
+    this.killcam = new Replay(this.scene.three, kc.frames);
+    this.scene.dynamicRoot.visible = false; // hide the live (frozen) actors/fx
+    this.match?.player?.setViewmodelVisible(false);
+    this.hud.hide();
+    this.killcamOverlay = this.buildReplayOverlay(
+      `KILLED BY ${kc.killerName.toUpperCase()}`,
+      "Hold SPACE to skip",
+      "#ff6b6b",
+    );
+  }
+
+  private updateKillcam(dt: number): void {
+    const m = this.match;
+    const k = this.killcam;
+    if (!m || !k) return;
+    // End on match-over, on respawn (camera handed back), or on skip.
+    if (m.state === "end" || m.player?.alive || this.input.wasPressed("jump")) {
+      if (m.state !== "end" && !m.player?.alive) m.respawnPlayerNow();
+      this.endKillcam();
+      return;
+    }
+    k.advance(dt, 0.55); // slow-mo
+    killcamView(
+      this.camera.perspective,
+      k.current(),
+      this.killcamData!.killerId,
+      this.killcamData!.victimId,
+    );
+  }
+
+  private endKillcam(): void {
+    if (!this.killcam) return;
+    this.killcam.dispose();
+    this.killcam = null;
+    this.killcamData = null;
+    this.scene.dynamicRoot.visible = true;
+    this.match?.player?.setViewmodelVisible(true);
+    this.killcamOverlay?.remove();
+    this.killcamOverlay = null;
+    if (!this.hardcore) this.hud.show();
+  }
+
+  private startBestPlay(data: BestPlayData): void {
+    this.bestPlayData = data;
+    this.bestPlay = new Replay(this.scene.three, data.frames);
+    if (this.postPanel) this.postPanel.style.display = "none";
+    this.bestPlayOverlay = this.buildReplayOverlay(
+      `BEST PLAY — ${data.kills} KILLS`,
+      "Hold SPACE to exit",
+      "#ffd166",
+    );
+  }
+
+  private updatePostMatch(_dt: number): void {
+    const r = this.bestPlay;
+    if (!r) return;
+    if (r.finished || this.input.wasPressed("jump")) {
+      this.endBestPlay();
+      return;
+    }
+    r.advance(_dt, 0.85);
+    chaseView(this.camera.perspective, r.current(), this.bestPlayData!.playerId);
+  }
+
+  private endBestPlay(): void {
+    if (!this.bestPlay) return;
+    this.bestPlay.dispose();
+    this.bestPlay = null;
+    this.bestPlayData = null;
+    this.bestPlayOverlay?.remove();
+    this.bestPlayOverlay = null;
+    if (this.postPanel) this.postPanel.style.display = "flex";
   }
 
   // ---- Pause overlay ----
@@ -628,7 +760,20 @@ export class Game {
           style: { display: "flex", flexDirection: "column", gap: "4px" },
           children: table,
         }),
-        button("Continue", () => this.setState(GameState.MainMenu)),
+        el("div", {
+          style: { display: "flex", gap: "12px" },
+          children: [
+            ...(r?.bestPlay
+              ? [
+                button(`▶ BEST PLAY (${r.bestPlay.kills} KILLS)`, () =>
+                  this.startBestPlay(r.bestPlay!), {
+                  background: "linear-gradient(180deg,#ffd166,#e0a92e)",
+                }),
+              ]
+              : []),
+            button("Continue", () => this.setState(GameState.MainMenu)),
+          ],
+        }),
       ],
     });
   }

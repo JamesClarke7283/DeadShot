@@ -67,6 +67,11 @@ export class WeaponViewmodel {
     this.camoMat.color.setHex(color);
   }
 
+  /** Hide/show the first-person gun (e.g. during a killcam). */
+  setVisible(v: boolean): void {
+    this.root.visible = v;
+  }
+
   onShot(): void {
     this.kick = Math.min(1, this.kick + 0.5);
   }

@@ -24,6 +24,7 @@ export class RemoteActor implements Actor {
   alive = true;
   yaw = 0;
   weaponId = "m4";
+  anim: AnimName = "idle";
 
   private readonly target = new THREE.Vector3();
   private has = false;
@@ -65,7 +66,8 @@ export class RemoteActor implements Actor {
     this.yaw = s.yaw;
     this.alive = s.alive;
     if (s.weaponId) this.weaponId = s.weaponId;
-    this.character.play((s.anim ?? "idle") as AnimName);
+    this.anim = (s.anim ?? "idle") as AnimName;
+    this.character.play(this.anim);
   }
 
   markDead(): void {
