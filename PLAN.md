@@ -143,11 +143,11 @@ low-poly geometry + `MeshToonMaterial` + inverted-hull outlines.
       Includes spawn points + waypoint graph for bot nav. **Verify:** load map, traverse, no
       fall-through, sniper perches accessible.
 
-- [ ] **5.3** `src/maps/ForestFacility.ts` — rolling heightmap terrain, pine/eucalyptus instanced
+- [x] **5.3** `src/maps/ForestFacility.ts` — rolling heightmap terrain, pine/eucalyptus instanced
       foliage, concrete bunker buildings, radar dish, fog density, medium-range firefights.
       **Verify:** heightmap walkable slopes only; bots navigate the waypoint graph.
 
-- [ ] **5.4** `src/maps/UrbanDocks.ts` — waterfront with shipping containers (stackable cover),
+- [x] **5.4** `src/maps/UrbanDocks.ts` — waterfront with shipping containers (stackable cover),
       cranes, warehouses, docked boat, vegetation planters, tight CQB. **Verify:** containers form
       valid cover lanes; containers stack via collision.
 

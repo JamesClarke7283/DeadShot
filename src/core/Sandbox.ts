@@ -32,7 +32,7 @@ import type {
   WorldQuery,
 } from "../weapons/combat.ts";
 import type { TeamId } from "./types.ts";
-import { DesertTown } from "../maps/DesertTown.ts";
+import { getMap, MAPS } from "../maps/maps.ts";
 import type { MapBuild } from "../maps/MapDefinition.ts";
 import { EquipmentManager, type LethalId, type TacticalId } from "../tacticals/EquipmentManager.ts";
 import type { EquipmentContext } from "../tacticals/Equipment.ts";
@@ -53,6 +53,8 @@ export class Sandbox {
   private aim: Aim;
   private equipment!: EquipmentManager;
   private map: MapBuild | null = null;
+  private mapId = "desert_town";
+  private assets: AssetLoader | null = null;
   private elapsed = 0;
   private lastG = -1;
 
@@ -95,8 +97,34 @@ export class Sandbox {
     };
   }
 
+  /** Switch to a different map by id and rebuild (debug / future menu). */
+  loadMap(id: string): void {
+    this.mapId = id;
+    if (this.assets) this.build(this.assets);
+  }
+
+  /** Cycle to the next map in the registry (debug). */
+  cycleMap(): string {
+    const i = MAPS.findIndex((m) => m.id === this.mapId);
+    this.mapId = MAPS[(i + 1) % MAPS.length].id;
+    if (this.assets) this.build(this.assets);
+    return this.mapId;
+  }
+
   build(assets: AssetLoader): void {
-    const map = DesertTown.build();
+    this.assets = assets;
+    // Clear any previous dynamic state (so build is re-runnable for map swaps).
+    for (const c of this.chars) {
+      this.scene.dynamicRoot.remove(c.root);
+      c.dispose();
+    }
+    this.chars = [];
+    this.pool.clear();
+    this.vfx.clear();
+    this.equipment?.clear();
+    this.world.reset();
+
+    const map = getMap(this.mapId).build();
     this.map = map;
     this.scene.setEnvironment(map.environment);
     this.scene.clearMap();
@@ -281,6 +309,11 @@ class SandboxWorld implements WorldQuery {
 
   setMap(map: MapBuild): void {
     this.map = map;
+  }
+
+  reset(): void {
+    this.targets = [];
+    this.targetByObject.clear();
   }
 
   setRocketSpawner(fn: (o: THREE.Vector3, d: THREE.Vector3, owner: ShooterTag) => void): void {
