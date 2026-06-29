@@ -199,6 +199,7 @@ export class Weapon {
           headshot,
           sourceTeam: this.shooter.team,
           weaponId: this.def.id,
+          sourceId: this.shooter.id,
         });
       }
     } else {

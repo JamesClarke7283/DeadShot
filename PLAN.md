@@ -153,12 +153,12 @@ low-poly geometry + `MeshToonMaterial` + inverted-hull outlines.
 
 ### Phase 6 — Bots & AI
 
-- [ ] **6.1** `src/characters/Bot.ts` + `BotNavigator.ts` — bot actor with health, loadout,
+- [x] **6.1** `src/characters/Bot.ts` + `BotNavigator.ts` — bot actor with health, loadout,
       inventory, animation mixer (idle / run / shoot / die); `BotNavigator` walks the map's waypoint
       graph using A* with line-of-sight shortcuts. **Verify:** spawn 1 bot, order it to a waypoint,
       it pathfinds around a wall.
 
-- [ ] **6.2** `src/characters/BotAI.ts` — target selection (nearest visible enemy + threat
+- [x] **6.2** `src/characters/BotAI.ts` — target selection (nearest visible enemy + threat
       weighting), aim error tuned by difficulty (`Recruit` 18° / `Regular` 9° / `Veteran` 3°),
       reaction time, suppressive fire, grenade usage, retreat-on-low-health, melee on close range.
       Bots fully simulate vs. each other when player spectates or in pure bot-vs-bot mode.

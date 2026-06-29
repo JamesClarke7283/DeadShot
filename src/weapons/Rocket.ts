@@ -90,6 +90,7 @@ export class Rocket extends Projectile {
           sourceTeam: this.owner.team,
           explosive: true,
           weaponId: this.owner.weaponId,
+          sourceId: this.owner.id,
         });
       }
     }

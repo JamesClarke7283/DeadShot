@@ -14,6 +14,8 @@ export interface DamageInfo {
   explosive?: boolean;
   /** Weapon id that dealt the damage (killfeed). */
   weaponId?: string;
+  /** Actor id of the attacker, for kill attribution. */
+  sourceId?: number;
 }
 
 /** Anything that can take damage (bots, the player, destructibles). */
@@ -56,6 +58,8 @@ export interface ShooterTag {
   team: TeamId;
   isPlayer: boolean;
   weaponId: string;
+  /** Actor id of the shooter, for kill attribution. */
+  id?: number;
 }
 
 /** Visual effects sink (implemented by render/VFX.ts). */
