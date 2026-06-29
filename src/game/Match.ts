@@ -115,7 +115,26 @@ export interface MatchOptions {
   roster?: LobbyPlayer[];
 }
 
-const BOT_WEAPONS = ["m4", "ak12", "mp5", "scarl", "p90", "mk14", "uzi", "m16a4"];
+// A wide spread across every category (interleaved so cycling gives a varied
+// mix of enemy weapons each match). Launchers are left out of the bot pool.
+const BOT_WEAPONS = [
+  "m4",
+  "mp5",
+  "rpk",
+  "kar98",
+  "scarl",
+  "vector",
+  "mk14",
+  "spas12",
+  "ak12",
+  "p90",
+  "m249",
+  "barrett",
+  "m16a4",
+  "uzi",
+  "ksg",
+  "deagle",
+];
 
 export class Match {
   state: MatchState = "warmup";

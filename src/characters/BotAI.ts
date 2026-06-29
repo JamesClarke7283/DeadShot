@@ -42,6 +42,7 @@ export class BotAI {
   private errorTimer = 0;
   private meleeCooldown = 0;
   private repathTimer = 0;
+  private triggerPulse = false; // alternates to fire non-auto weapons
   private selectTimer = 0;
   private readonly error = new THREE.Vector3();
   private readonly aimNoise: { x: number; y: number } = { x: 0, y: 0 };
@@ -205,7 +206,15 @@ export class BotAI {
   }
 
   private fire(bot: Bot, dt: number, ctx: BotContext): void {
-    bot.weapon.setTrigger(bot.firing);
+    // Auto weapons fire while the trigger is held; semi/burst/bolt/pump fire on
+    // the rising edge, so pulse the trigger for them — otherwise a bot would fire
+    // a single shot per engagement with a sniper/shotgun/marksman/pistol.
+    if (bot.weapon.fireMode === "auto") {
+      bot.weapon.setTrigger(bot.firing);
+    } else {
+      this.triggerPulse = !this.triggerPulse;
+      bot.weapon.setTrigger(bot.firing && this.triggerPulse);
+    }
     const aim: Aim = {
       origin: _eye.clone(),
       direction: bot.aimDir.clone().normalize(),

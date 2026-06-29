@@ -45,7 +45,9 @@ Deno.test("all-bot TDM runs to a winner and prints a scoreboard", () => {
 
   const dt = 1 / 20;
   let frames = 0;
-  while (match.state !== "end" && frames < 8000) {
+  // Generous cap: the assertion is that an all-bot match REACHES a winner, not
+  // how fast — varied bot weapons (snipers/shotguns) make TTK nondeterministic.
+  while (match.state !== "end" && frames < 24000) {
     match.update(dt);
     frames++;
   }
