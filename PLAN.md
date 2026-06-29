@@ -83,7 +83,7 @@ low-poly geometry + `MeshToonMaterial` + inverted-hull outlines.
 
 ### Phase 3 — Weapons
 
-- [ ] **3.1** `src/weapons/WeaponDefinition.ts` — typed data table for all 18 weapons across 7
+- [x] **3.1** `src/weapons/WeaponDefinition.ts` — typed data table for all 18 weapons across 7
       categories with per-weapon stats (damage, fireRate, magazine, reserve, reloadTime,
       recoilPattern, ADS time, range falloff, mobility, pellets for shotguns, rocket for RPG):
   - Assault: M4, AK-12, SCAR-L
@@ -96,7 +96,7 @@ low-poly geometry + `MeshToonMaterial` + inverted-hull outlines.
   - **Verify:** `deno test --check` data-table unit test (every weapon has all required stats;
     magazine > 0; damage > 0).
 
-- [ ] **3.2** `src/weapons/AttachmentDefinitions.ts` — optic / barrel / magazine / stock / grip /
+- [x] **3.2** `src/weapons/AttachmentDefinitions.ts` — optic / barrel / magazine / stock / grip /
       perk / field-upgrade categories with per-attachment stat modifiers (e.g. Red Dot: +ADS, 0
       damage; Ext Mag: +magazine, -mobility; Compensator: -recoil, -range; Dead Silence field
       upgrade, Trophy field upgrade, etc.). Includes camo color palette. **Verify:** unit test that
