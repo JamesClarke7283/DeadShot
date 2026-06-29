@@ -25,6 +25,8 @@ and as a native desktop window. Procedural-first: it runs fully with zero downlo
 ```sh
 deno task run-browser   # HTTP server + opens the browser  (127.0.0.1:8080)
 deno task run-client    # same server in a native webview_deno window
+deno task run-desktop   # native app via Deno Desktop (Deno 2.9+); :cef for Chromium backend
+deno task build-desktop # package a distributable (dist/DeadShot.AppImage on Linux)
 deno task server        # host online play: serves the game + WebSocket relay on 0.0.0.0:8090
 deno task fetch-assets  # optional CC0 model/music packs (procedural fallback otherwise)
 ```

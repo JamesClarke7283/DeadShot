@@ -11,3 +11,6 @@
 
 # Deno
 deno.lock
+
+# Deno Desktop build output
+/dist

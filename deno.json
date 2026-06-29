@@ -5,13 +5,20 @@
   "tasks": {
     "run-browser": "deno run -A src/server/server.ts",
     "run-client": "deno run -A --unstable-ffi src/server/desktop.ts",
+    "run-desktop": "deno desktop -A src/server/desktop_deno.ts",
+    "run-desktop:cef": "deno desktop -A --backend cef src/server/desktop_deno.ts",
+    "build-desktop": "deno desktop -A --output dist/DeadShot.AppImage src/server/desktop_deno.ts",
     "server": "DEADSHOT_HOST=0.0.0.0 DEADSHOT_NO_OPEN=1 DEADSHOT_PORT=8090 deno run -A src/server/server.ts",
     "fetch-assets": "deno run -A src/tools/fetch_assets.ts",
     "lint": "deno lint",
     "fmt": "deno fmt",
     "fmt:check": "deno fmt --check",
     "test": "deno test -A",
-    "check": "deno check src/main.ts src/server/server.ts"
+    "check": "deno check src/main.ts src/server/server.ts src/server/desktop_deno.ts"
+  },
+  "desktop": {
+    "app": { "name": "DeadShot", "identifier": "com.jamesdavidclarke.deadshot" },
+    "backend": "webview"
   },
   "imports": {
     "three": "npm:three@0.180.0",
