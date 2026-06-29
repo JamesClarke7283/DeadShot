@@ -25,7 +25,11 @@ import { Player } from "./Player.ts";
 import { Scoreboard } from "./Scoreboard.ts";
 import { Spawner } from "./Spawner.ts";
 import type { ModeRules } from "./Mode.ts";
+import { SCORE } from "./Mode.ts";
 import type { TeamId } from "../core/types.ts";
+import { ScorestreakManager } from "../streaks/ScorestreakManager.ts";
+import { getStreak, STREAKS } from "../streaks/streaks.ts";
+import type { Streak, StreakContext, StreakOwner } from "../streaks/Streak.ts";
 
 export type MatchState = "warmup" | "live" | "end";
 
@@ -59,9 +63,17 @@ export class Match {
   winner?: TeamId | number;
   winReason?: "score" | "time";
   readonly scoreboard = new Scoreboard();
+  readonly streaks = new ScorestreakManager(STREAKS);
   readonly killfeed: KillEvent[] = [];
   player: Player | null = null;
   bots: Bot[] = [];
+
+  // Active streaks + their owner; minimap intel state.
+  private activeStreaks: { streak: Streak; owner: StreakOwner }[] = [];
+  private pings: { team: TeamId; positions: THREE.Vector3[]; expire: number }[] = [];
+  private counterUAV = new Map<TeamId, number>();
+  private streakCtx!: StreakContext;
+  private botStreakTimer = 0;
 
   private actorList: Actor[] = [];
   private map!: MapBuild;
@@ -101,6 +113,7 @@ export class Match {
     this.world = new MatchWorld(this.scene.mapRoot, () => this.actorList, this.pool, this.vfx);
     this.navigator = new Navigator(map.waypoints);
     this.spawner = new Spawner(map.spawns);
+    this.streakCtx = this.buildStreakContext();
 
     const total = this.opts.botCount + (this.opts.hasPlayer ? 1 : 0);
     let slot = 0;
@@ -208,7 +221,10 @@ export class Match {
       }
     }
 
-    // Win check.
+    this.updateStreaks(dt);
+
+    // Win check (a nuke streak may have already ended the match above).
+    if (this.state !== "live") return;
     const win = this.mode.checkWin(this.scoreboard, this.elapsed);
     if (win.over) {
       this.state = "end";
@@ -239,6 +255,9 @@ export class Match {
     const killerId = info?.sourceId;
     const headshot = info?.headshot ?? false;
     this.scoreboard.recordKill(killerId, victim.id, headshot);
+    if (killerId !== undefined && killerId !== victim.id) {
+      this.streaks.addScore(killerId, SCORE.kill + (headshot ? SCORE.headshotBonus : 0));
+    }
     const killer = killerId !== undefined && killerId !== victim.id
       ? this.scoreboard.get(killerId)
       : undefined;
@@ -261,7 +280,103 @@ export class Match {
     return `${this.scoreboard.get(this.winner).name} wins`;
   }
 
+  // ---- Scorestreaks ----
+  private buildStreakContext(): StreakContext {
+    return {
+      world: this.world,
+      vfx: this.vfx,
+      root: this.scene.dynamicRoot,
+      owner: { id: -1, team: "ffa" }, // mutated per-streak before each update
+      allActors: () => this.actorList,
+      enemiesOf: (team) =>
+        this.actorList.filter((a) =>
+          a.alive && a.id !== this.streakCtx.owner.id && (team === "ffa" || a.team !== team)
+        ),
+      groundAt: (x, z) => this.map.groundAt(x, z),
+      bounds: this.map.bounds,
+      ping: (team, positions, dur) =>
+        this.pings.push({ team, positions, expire: this.elapsed + dur }),
+      setCounterUAV: (against, dur) => this.counterUAV.set(against, this.elapsed + dur),
+      spawnCarePackage: (_pos, owner) => this.activateStreak(owner, "care_package"),
+      grantRandomStreak: (owner) => this.grantRandomStreak(owner),
+      endMatch: (winner) => this.endByStreak(winner),
+      localPlayerId: this.player ? this.player.id : null,
+    };
+  }
+
+  /** Activate a streak for an owner (player UI or bot AI). */
+  activateStreak(owner: StreakOwner, streakId: string): void {
+    const streak = getStreak(streakId).create();
+    this.activeStreaks.push({ streak, owner });
+    this.streaks.markActive(owner.id, streakId);
+  }
+
+  /** Player-side activation: only if currently available. Returns success. */
+  activatePlayerStreak(streakId: string): boolean {
+    if (!this.player || !this.streaks.isAvailable(this.player.id, streakId)) return false;
+    this.activateStreak({ id: this.player.id, team: this.player.team }, streakId);
+    return true;
+  }
+
+  private grantRandomStreak(owner: StreakOwner): string {
+    const pick = STREAKS[Math.floor(Math.random() * (STREAKS.length - 1))]; // exclude nuke (last)
+    this.activateStreak(owner, pick.id);
+    return pick.id;
+  }
+
+  private endByStreak(winner: TeamId | number): void {
+    this.state = "end";
+    this.winner = winner;
+    this.winReason = "score";
+    console.info("[match] nuke —", this.formatWinner());
+    console.info(this.scoreboard.format());
+  }
+
+  private updateStreaks(dt: number): void {
+    // Tick active streaks (set owner so context queries resolve correctly).
+    for (let i = this.activeStreaks.length - 1; i >= 0; i--) {
+      const entry = this.activeStreaks[i];
+      this.streakCtx.owner = entry.owner;
+      entry.streak.update(dt, this.streakCtx);
+      if (!entry.streak.active) {
+        entry.streak.dispose(this.streakCtx);
+        this.streaks.markEnded(entry.owner.id, entry.streak.id);
+        this.activeStreaks.splice(i, 1);
+      }
+    }
+    // Expire minimap pings.
+    if (this.pings.length) this.pings = this.pings.filter((p) => p.expire > this.elapsed);
+
+    // Bots auto-use their best available streak periodically.
+    this.botStreakTimer -= dt;
+    if (this.botStreakTimer <= 0) {
+      this.botStreakTimer = 2;
+      for (const bot of this.bots) {
+        if (!bot.alive) continue;
+        const best = this.streaks.bestAvailable(bot.id);
+        if (best) this.activateStreak({ id: bot.id, team: bot.team }, best.id);
+      }
+    }
+  }
+
+  /** Enemy positions currently revealed to `team` (UAV), respecting Counter-UAV. */
+  activePings(team: TeamId): THREE.Vector3[] {
+    const blockedUntil = this.counterUAV.get(team) ?? 0;
+    if (blockedUntil > this.elapsed) return [];
+    const out: THREE.Vector3[] = [];
+    for (const p of this.pings) {
+      if (p.team === team) out.push(...p.positions);
+    }
+    return out;
+  }
+
+  isCounterUAV(team: TeamId): boolean {
+    return (this.counterUAV.get(team) ?? 0) > this.elapsed;
+  }
+
   dispose(): void {
+    for (const e of this.activeStreaks) e.streak.dispose(this.streakCtx);
+    this.activeStreaks = [];
     this.player?.dispose();
     for (const b of this.bots) {
       this.scene.dynamicRoot.remove(b.character.root);

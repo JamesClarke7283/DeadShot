@@ -184,22 +184,22 @@ low-poly geometry + `MeshToonMaterial` + inverted-hull outlines.
 
 ### Phase 8 — Scorestreaks
 
-- [ ] **8.1** `src/streaks/ScorestreakManager.ts` — score tracker per player, streak unlock
+- [x] **8.1** `src/streaks/ScorestreakManager.ts` — score tracker per player, streak unlock
       thresholds, streak-selection UI hook, in-progress streak limiting. **Verify:** bot reaching
       500 score unlocks a UAV slot.
 
-- [ ] **8.2** `src/streaks/CarePackage.ts` + `UAV.ts` + `CounterUAV.ts` — care package (crate falls
+- [x] **8.2** `src/streaks/CarePackage.ts` + `UAV.ts` + `CounterUAV.ts` — care package (crate falls
       from sky at marked location, captured by walking over, grants random streak), UAV (6 s radar
       sweep of enemies on minimap), Counter-UAV (disable enemy minimap). **Verify:** call in care
       package, walk over crate, receive random streak; UAV pings enemies on HUD minimap.
 
-- [ ] **8.3** `src/streaks/AttackHelicopter.ts` + `Gunship.ts` + `ChopperGunner.ts` +
+- [x] **8.3** `src/streaks/AttackHelicopter.ts` + `Gunship.ts` + `ChopperGunner.ts` +
       `PredatorMissile.ts` + `StrafeRun.ts` — air streaks (AI-piloted heli that circles + shoots;
       player-controlled gunship camera; predator missile player-steers into ground; strafe run = 3
       jets across the map). **Verify:** each streak spawns, attacks enemies, expires on timer or
       ammo.
 
-- [ ] **8.4** `src/streaks/SentryGun.ts` + `RCXD.ts` + `Juggernaut.ts` + `Nuke.ts` — ground streaks:
+- [x] **8.4** `src/streaks/SentryGun.ts` + `RCXD.ts` + `Juggernaut.ts` + `Nuke.ts` — ground streaks:
       deployable auto-aiming sentry, RC car player-driven, Juggernaut loadout swap (heavy armor +
       LMG), Nuke (highest cost, **instant match-end + pulling team wins** per your spec).
       **Verify:** earn nuke via console cheat, call it, match ends with winning team banner.
