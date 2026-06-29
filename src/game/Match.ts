@@ -68,6 +68,7 @@ export interface MatchOptions {
   playerLethal?: string;
   respawnDelay?: number;
   warmup?: number;
+  hardcore?: boolean;
   audio?: MatchAudio;
 }
 
@@ -178,6 +179,15 @@ export class Match {
       this.scene.add(bot.character.root);
       this.bots.push(bot);
       this.actorList.push(bot);
+    }
+
+    // Hardcore: 30 HP, no regen, applied before spawns set health = maxHealth.
+    if (this.opts.hardcore) {
+      this.player?.setHardcore();
+      for (const b of this.bots) {
+        b.maxHealth = 30;
+        b.health = 30;
+      }
     }
 
     // Initial spawns (no enemies yet -> round-robin).

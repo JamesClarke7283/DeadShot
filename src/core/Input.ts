@@ -187,6 +187,20 @@ export class Input {
     return w;
   }
 
+  /**
+   * Drive an input code from an external source (gamepad / touch). Maintains the
+   * same down/pressed/released edges as physical input.
+   */
+  setVirtual(code: string, down: boolean): void {
+    if (down) {
+      if (!this.down.has(code)) this.pressed.add(code);
+      this.down.add(code);
+    } else {
+      if (this.down.has(code)) this.released.add(code);
+      this.down.delete(code);
+    }
+  }
+
   /** Clear per-frame edge state. Call after all systems have read input. */
   endFrame(): void {
     this.pressed.clear();

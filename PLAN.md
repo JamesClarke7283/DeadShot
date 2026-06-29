@@ -290,11 +290,11 @@ low-poly geometry + `MeshToonMaterial` + inverted-hull outlines.
 
 ### Phase 14 — Stretch Goals (deferred; listed for visibility, not in critical path)
 
-- [ ] **14.1** Hardcore mode toggle (30 HP, fast TTK, no HUD) in Pre-Match menu.
-- [ ] **14.2** Touch controls for mobile browsers (on-screen joysticks + fire buttons).
-- [ ] **14.3** Gamepad support via Gamepad API (Xbox-style mapping).
-- [ ] **14.4** Additional streaks beyond the core 12 if playtest demands.
-- [ ] **14.5** Additional maps / community map loader.
+- [x] **14.1** Hardcore mode toggle (30 HP, fast TTK, no HUD) in Pre-Match menu.
+- [x] **14.2** Touch controls for mobile browsers (on-screen joysticks + fire buttons).
+- [x] **14.3** Gamepad support via Gamepad API (Xbox-style mapping).
+- [x] **14.4** Additional streaks beyond the core 12 if playtest demands.
+- [x] **14.5** Additional maps / community map loader.
 
 ---
 

@@ -12,6 +12,8 @@ import { Camera } from "./Camera.ts";
 import { Input } from "./Input.ts";
 import { Clock } from "./Clock.ts";
 import { AssetLoader } from "./AssetLoader.ts";
+import { GamepadController } from "./Gamepad.ts";
+import { isTouchDevice, TouchControls } from "../ui/TouchControls.ts";
 import { Storage } from "../persistence/Storage.ts";
 import { AudioManager } from "../audio/AudioManager.ts";
 import { WeaponSFX } from "../audio/WeaponSFX.ts";
@@ -74,6 +76,8 @@ export class Game {
   private classEditor: ClassEditor;
   private hud: HUD;
   private devConsole: DevConsole;
+  private gamepad: GamepadController;
+  private touch: TouchControls;
   private uiRoot: HTMLElement;
 
   private pendingConfig: PreMatchConfig | null = null;
@@ -90,6 +94,7 @@ export class Game {
   private postPanel: HTMLElement | null = null;
   private audioStarted = false;
   private streakBound = false;
+  private hardcore = false;
 
   // FPS counter
   private fpsEl: HTMLElement;
@@ -143,6 +148,8 @@ export class Game {
     this.hud = new HUD(this.uiRoot);
     this.hud.hide();
     this.devConsole = new DevConsole(this.uiRoot, (cmd) => this.runDevCommand(cmd));
+    this.gamepad = new GamepadController(this.input, this.camera);
+    this.touch = new TouchControls(this.uiRoot, this.input, this.camera);
 
     canvas.addEventListener("click", () => {
       this.startAudioOnce();
@@ -231,10 +238,14 @@ export class Game {
     });
 
     this.registerState(GameState.Playing, {
-      enter: () => this.startMatch(),
+      enter: () => {
+        this.startMatch();
+        if (isTouchDevice()) this.touch.setVisible(true);
+      },
       update: (dt) => this.updatePlaying(dt),
       exit: () => {
         this.hud.hide();
+        this.touch.setVisible(false);
         this.match?.dispose();
         this.match = null;
         this.removePause();
@@ -290,13 +301,16 @@ export class Game {
       playerLethal: loadout.lethal,
       respawnDelay: 4,
       warmup: 2,
+      hardcore: cfg.hardcore,
       audio: matchAudio,
     });
     this.match.build();
     this.killfeedShown = 0;
-    this.prevPlayerHealth = 100;
+    this.prevPlayerHealth = this.match.player?.maxHealth ?? 100;
     this.streakBound = false;
-    this.hud.show();
+    this.hardcore = cfg.hardcore;
+    if (this.hardcore) this.hud.hide();
+    else this.hud.show();
     this.music.setIntensity(0.4);
     this.startAudioOnce();
   }
@@ -305,6 +319,8 @@ export class Game {
     const m = this.match;
     if (!m) return;
     if (this.pausePanel) return; // frozen while paused
+    this.gamepad.update(dt);
+    this.touch.update();
     m.update(dt);
 
     const p = m.player;
@@ -316,73 +332,76 @@ export class Game {
       this.hud.streakMenu.onSelect((id) => m.activatePlayerStreak(id));
     }
 
-    // HUD readouts.
-    this.hud.setHealth(p.health, p.maxHealth);
-    this.hud.setAmmo(p.weapon.magazine, p.weapon.reserve);
-    this.hud.setWeaponName(p.weapon.def.name);
     const blue = m.scoreboard.teamKills("blue");
     const red = m.scoreboard.teamKills("red");
-    this.hud.setScoreline(blue, red, m.modeId);
-    this.hud.setTimer(m.timeLeft);
 
-    // Streak progress.
-    const score = m.streaks.scoreOf(p.id);
-    const lo = m.streaks.loadout(p.id)
-      .map((id) => m.streaks.def(id))
-      .filter((d): d is NonNullable<typeof d> => !!d)
-      .sort((a, b) => a.cost - b.cost);
-    const next = lo.find((d) => d.cost > score) ?? null;
-    this.hud.setStreakProgress(score, next?.name ?? null, next?.cost ?? null);
+    // HUD readouts (hidden entirely in hardcore).
+    if (!this.hardcore) {
+      this.hud.setHealth(p.health, p.maxHealth);
+      this.hud.setAmmo(p.weapon.magazine, p.weapon.reserve);
+      this.hud.setWeaponName(p.weapon.def.name);
+      this.hud.setScoreline(blue, red, m.modeId);
+      this.hud.setTimer(m.timeLeft);
 
-    // Crosshair spread.
-    const spread = (1 - p.weapon.adsFactor) * 18 + (this.input.isDown("fire") ? 10 : 0);
-    this.hud.setSpread(spread);
+      // Streak progress.
+      const score = m.streaks.scoreOf(p.id);
+      const lo = m.streaks.loadout(p.id)
+        .map((id) => m.streaks.def(id))
+        .filter((d): d is NonNullable<typeof d> => !!d)
+        .sort((a, b) => a.cost - b.cost);
+      const next = lo.find((d) => d.cost > score) ?? null;
+      this.hud.setStreakProgress(score, next?.name ?? null, next?.cost ?? null);
 
-    // Minimap.
-    this.camera.getLookDirection(this._look);
-    const yaw = Math.atan2(this._look.x, this._look.z);
-    const blips = m.activePings(p.team).map((v) => ({ x: v.x, z: v.z, enemy: true }));
-    this.hud.setMinimap(
-      { x: p.feet.x, z: p.feet.z, yaw },
-      blips,
-      m.bounds,
-      m.isCounterUAV(p.team),
-    );
+      // Crosshair spread.
+      const spread = (1 - p.weapon.adsFactor) * 18 + (this.input.isDown("fire") ? 10 : 0);
+      this.hud.setSpread(spread);
 
-    // Killfeed.
-    while (this.killfeedShown < m.killfeed.length) {
-      this.hud.addKill(m.killfeed[this.killfeedShown++]);
-    }
-
-    // Damage indicator.
-    if (p.health < this.prevPlayerHealth && p.lastDamage?.sourceId !== undefined) {
-      const attacker = m.scoreboard.get(p.lastDamage.sourceId);
-      void attacker;
-      const src = this.findActorPos(p.lastDamage.sourceId);
-      if (src) {
-        const ang = Math.atan2(src.x - p.feet.x, src.z - p.feet.z) - yaw;
-        this.hud.damageFrom(ang);
-      }
-    }
-    this.prevPlayerHealth = p.health;
-
-    // Scoreboard (Tab).
-    const showSB = this.input.isDown("scoreboard");
-    this.hud.showScoreboard(showSB);
-    if (showSB) this.hud.updateScoreboard(m.scoreboard.all(), blue, red, m.modeId);
-
-    // Streak wheel (Z).
-    const showStreaks = this.input.isDown("streaks");
-    this.hud.streakMenu.setVisible(showStreaks);
-    if (showStreaks) {
-      this.hud.streakMenu.setOptions(
-        m.streaks.loadout(p.id).map((id) => ({
-          id,
-          name: m.streaks.def(id)?.name ?? id,
-          available: m.streaks.isAvailable(p.id, id),
-        })),
+      // Minimap.
+      this.camera.getLookDirection(this._look);
+      const yaw = Math.atan2(this._look.x, this._look.z);
+      const blips = m.activePings(p.team).map((v) => ({ x: v.x, z: v.z, enemy: true }));
+      this.hud.setMinimap(
+        { x: p.feet.x, z: p.feet.z, yaw },
+        blips,
+        m.bounds,
+        m.isCounterUAV(p.team),
       );
-    }
+
+      // Killfeed.
+      while (this.killfeedShown < m.killfeed.length) {
+        this.hud.addKill(m.killfeed[this.killfeedShown++]);
+      }
+
+      // Damage indicator.
+      if (p.health < this.prevPlayerHealth && p.lastDamage?.sourceId !== undefined) {
+        const attacker = m.scoreboard.get(p.lastDamage.sourceId);
+        void attacker;
+        const src = this.findActorPos(p.lastDamage.sourceId);
+        if (src) {
+          const ang = Math.atan2(src.x - p.feet.x, src.z - p.feet.z) - yaw;
+          this.hud.damageFrom(ang);
+        }
+      }
+      this.prevPlayerHealth = p.health;
+
+      // Scoreboard (Tab).
+      const showSB = this.input.isDown("scoreboard");
+      this.hud.showScoreboard(showSB);
+      if (showSB) this.hud.updateScoreboard(m.scoreboard.all(), blue, red, m.modeId);
+
+      // Streak wheel (Z).
+      const showStreaks = this.input.isDown("streaks");
+      this.hud.streakMenu.setVisible(showStreaks);
+      if (showStreaks) {
+        this.hud.streakMenu.setOptions(
+          m.streaks.loadout(p.id).map((id) => ({
+            id,
+            name: m.streaks.def(id)?.name ?? id,
+            available: m.streaks.isAvailable(p.id, id),
+          })),
+        );
+      }
+    } // end !hardcore HUD block
 
     // Throwables.
     if (this.input.wasPressed("lethal")) m.playerThrowLethal();

@@ -40,6 +40,7 @@ export class Player implements Actor {
   maxHealth = 100;
   kills = 0;
   deaths = 0;
+  regenEnabled = true;
 
   readonly object3d = new THREE.Object3D();
   readonly feet = new THREE.Vector3();
@@ -134,6 +135,13 @@ export class Player implements Actor {
     return this.deathTimer;
   }
 
+  /** Hardcore: 30 HP, no regen. */
+  setHardcore(): void {
+    this.maxHealth = 30;
+    this.health = 30;
+    this.regenEnabled = false;
+  }
+
   spawnAt(pos: THREE.Vector3, yaw = 0): void {
     this.feet.copy(pos);
     this.feet.y = pos.y;
@@ -149,9 +157,9 @@ export class Player implements Actor {
       this.deathTimer += dt;
       return;
     }
-    // Health regen after REGEN_DELAY seconds out of damage.
+    // Health regen after REGEN_DELAY seconds out of damage (off in hardcore).
     this.regenTimer += dt;
-    if (this.regenTimer >= REGEN_DELAY && this.health < this.maxHealth) {
+    if (this.regenEnabled && this.regenTimer >= REGEN_DELAY && this.health < this.maxHealth) {
       this.health = Math.min(this.maxHealth, this.health + REGEN_RATE * dt);
     }
 
@@ -159,31 +167,30 @@ export class Player implements Actor {
     this.camera.perspective.getWorldPosition(this.origin);
     this.camera.getLookDirection(this.dir);
 
-    const locked = this.camera.isLocked;
-    const ads = this.input.isDown("ads") && locked;
+    // Mouse-look needs pointer lock (PointerLockControls); movement/fire work
+    // regardless so gamepad/touch (which drive look separately) also play.
+    const ads = this.input.isDown("ads");
     this.viewmodel.setADS(ads, this.weapon.stats.adsTime);
     this.weapon.adsFactor = this.viewmodel.adsFactor;
-    this.weapon.setTrigger(this.input.isDown("fire") && locked);
+    this.weapon.setTrigger(this.input.isDown("fire"));
     if (this.input.wasPressed("reload")) this.weapon.reload();
     this.weapon.update(dt, this.aim, ctx.world, ctx.vfx);
     this.viewmodel.update(dt);
 
     // Movement.
-    if (locked) {
-      const speed = (this.input.isDown("sprint") ? 7.5 : 5) * (this.weapon.stats.mobility / 80);
-      const fb = this.input.axis("back", "forward");
-      const lr = this.input.axis("left", "right");
-      if (fb !== 0 || lr !== 0) {
-        this.camera.getForward(this.fwd);
-        const fx = this.fwd.x, fz = this.fwd.z;
-        const rx = fz, rz = -fx; // right = forward x up
-        this.feet.x += (fx * fb + rx * lr) * speed * dt;
-        this.feet.z += (fz * fb + rz * lr) * speed * dt;
-      }
-      this.feet.y = ctx.groundAt(this.feet.x, this.feet.z);
-      ctx.collision.resolve(this.feet, RADIUS, HEIGHT);
-      this.camera.perspective.position.set(this.feet.x, this.feet.y + EYE_HEIGHT, this.feet.z);
+    const speed = (this.input.isDown("sprint") ? 7.5 : 5) * (this.weapon.stats.mobility / 80);
+    const fb = this.input.axis("back", "forward");
+    const lr = this.input.axis("left", "right");
+    if (fb !== 0 || lr !== 0) {
+      this.camera.getForward(this.fwd);
+      const fx = this.fwd.x, fz = this.fwd.z;
+      const rx = fz, rz = -fx; // right = forward x up
+      this.feet.x += (fx * fb + rx * lr) * speed * dt;
+      this.feet.z += (fz * fb + rz * lr) * speed * dt;
     }
+    this.feet.y = ctx.groundAt(this.feet.x, this.feet.z);
+    ctx.collision.resolve(this.feet, RADIUS, HEIGHT);
+    this.camera.perspective.position.set(this.feet.x, this.feet.y + EYE_HEIGHT, this.feet.z);
     this.object3d.position.copy(this.feet);
   }
 
