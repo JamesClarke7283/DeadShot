@@ -25,8 +25,12 @@ and as a native desktop window. Procedural-first: it runs fully with zero downlo
 ```sh
 deno task run-browser   # HTTP server + opens the browser  (127.0.0.1:8080)
 deno task run-client    # same server in a native webview_deno window
+deno task server        # host online play: serves the game + WebSocket relay on 0.0.0.0:8090
 deno task fetch-assets  # optional CC0 model/music packs (procedural fallback otherwise)
 ```
+
+**Multiplayer:** run `deno task server`, then everyone opens `http://<host-ip>:8090` and uses
+**Multiplayer → Host/Join** (relay netcode; the host picks the map/mode and can add bots).
 
 Dev: `deno task test` · `deno task lint` · `deno task fmt` · `deno task check`.
 

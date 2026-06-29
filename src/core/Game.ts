@@ -22,6 +22,7 @@ import { MusicPlayer } from "../audio/MusicPlayer.ts";
 import { MainMenu } from "../ui/MainMenu.ts";
 import { type PreMatchConfig, PreMatchMenu } from "../ui/PreMatchMenu.ts";
 import { ClassEditor } from "../ui/ClassEditor.ts";
+import { LobbyMenu, type LobbyStartPayload } from "../ui/LobbyMenu.ts";
 import { HUD } from "../ui/HUD.ts";
 import { DevConsole } from "../ui/DevConsole.ts";
 import { button, el } from "../ui/dom.ts";
@@ -37,6 +38,7 @@ export enum GameState {
   MainMenu = "MainMenu",
   ClassEditor = "ClassEditor",
   PreMatch = "PreMatch",
+  Lobby = "Lobby",
   Playing = "Playing",
   PostMatch = "PostMatch",
 }
@@ -74,6 +76,7 @@ export class Game {
   private mainMenu: MainMenu;
   private preMatch: PreMatchMenu;
   private classEditor: ClassEditor;
+  private lobby: LobbyMenu;
   private hud: HUD;
   private devConsole: DevConsole;
   private gamepad: GamepadController;
@@ -81,6 +84,7 @@ export class Game {
   private uiRoot: HTMLElement;
 
   private pendingConfig: PreMatchConfig | null = null;
+  private pendingNet: LobbyStartPayload | null = null;
   private killfeedShown = 0;
   private prevPlayerHealth = 100;
   private postResult: {
@@ -131,9 +135,17 @@ export class Game {
     this.uiRoot = document.getElementById("ui-root") ?? document.body;
     this.mainMenu = new MainMenu(this.uiRoot, {
       onPlay: () => this.setState(GameState.PreMatch),
+      onMultiplayer: () => this.setState(GameState.Lobby),
       onCreateClass: () => this.setState(GameState.ClassEditor),
       onOptions: () => {/* inline in MainMenu */},
       onQuit: () => this.devConsole.println("Quit: close the tab/window."),
+    });
+    this.lobby = new LobbyMenu(this.uiRoot, {
+      onStart: (payload) => {
+        this.pendingNet = payload;
+        this.setState(GameState.Playing);
+      },
+      onBack: () => this.setState(GameState.MainMenu),
     });
     this.preMatch = new PreMatchMenu(this.uiRoot, this.storage, {
       onStart: (cfg) => {
@@ -244,6 +256,15 @@ export class Game {
       exit: () => this.preMatch.hide(),
     });
 
+    this.registerState(GameState.Lobby, {
+      enter: () => {
+        this.camera.unlock();
+        this.hud.hide();
+        this.lobby.show();
+      },
+      exit: () => this.lobby.hide(),
+    });
+
     this.registerState(GameState.Playing, {
       enter: () => {
         this.startMatch();
@@ -255,6 +276,10 @@ export class Game {
         this.touch.setVisible(false);
         this.match?.dispose();
         this.match = null;
+        if (this.pendingNet) {
+          this.pendingNet.net.disconnect();
+          this.pendingNet = null;
+        }
         this.removePause();
         this.music.setIntensity(0.2);
         this.music.setDuck(0);
@@ -268,7 +293,27 @@ export class Game {
   }
 
   // ---- Match lifecycle ----
+  private makeMatchAudio(): MatchAudio {
+    return {
+      playerShot: (id) => this.weaponSFX.shot(id),
+      playerReload: () => this.weaponSFX.reload(),
+      hitMarker: (hs) => {
+        this.weaponSFX.hitMarker(hs);
+        this.hud.hitMarker(hs);
+      },
+      enemyShot: (id, pos) => {
+        this.camera.perspective.getWorldPosition(this._camPos);
+        if (pos.distanceTo(this._camPos) < 90) this.spatialSFX.shotAt(id, pos);
+      },
+      explosion: (pos, radius) => this.spatialSFX.explosionAt(pos, Math.min(2, radius / 4)),
+    };
+  }
+
   private startMatch(): void {
+    if (this.pendingNet) {
+      this.startNetMatch(this.pendingNet);
+      return;
+    }
     const cfg = this.pendingConfig;
     if (!cfg) {
       this.setState(GameState.MainMenu);
@@ -285,19 +330,7 @@ export class Game {
     const camo = getCamo(loadout.camo).color;
     const mode = cfg.mode === "tdm" ? TDM : FFA;
 
-    const matchAudio: MatchAudio = {
-      playerShot: (id) => this.weaponSFX.shot(id),
-      playerReload: () => this.weaponSFX.reload(),
-      hitMarker: (hs) => {
-        this.weaponSFX.hitMarker(hs);
-        this.hud.hitMarker(hs);
-      },
-      enemyShot: (id, pos) => {
-        this.camera.perspective.getWorldPosition(this._camPos);
-        if (pos.distanceTo(this._camPos) < 90) this.spatialSFX.shotAt(id, pos);
-      },
-      explosion: (pos, radius) => this.spatialSFX.explosionAt(pos, Math.min(2, radius / 4)),
-    };
+    const matchAudio = this.makeMatchAudio();
 
     this.match = new Match(this.scene, this.camera, this.input, {
       mapId: cfg.mapId,
@@ -325,6 +358,57 @@ export class Game {
     this.prevPlayerHealth = this.match.player?.maxHealth ?? 100;
     this.streakBound = false;
     this.hardcore = cfg.hardcore;
+    if (this.hardcore) this.hud.hide();
+    else this.hud.show();
+    this.music.setIntensity(0.4);
+    this.startAudioOnce();
+  }
+
+  private startNetMatch(payload: LobbyStartPayload): void {
+    // Defensively clear every menu/overlay so nothing covers the live map.
+    this.mainMenu.hide();
+    this.preMatch.hide();
+    this.classEditor.hide();
+    this.lobby.hide();
+    this.removePostMatch();
+    this.removePause();
+
+    const s = payload.settings;
+    const loadout = this.storage.getClass(0); // each client brings its own class
+    const primary = getWeapon(loadout.primary.weaponId);
+    const camo = getCamo(loadout.camo).color;
+    const mode = s.mode === "tdm" ? TDM : FFA;
+
+    this.match = new Match(this.scene, this.camera, this.input, {
+      mapId: s.mapId,
+      mode,
+      botCount: s.botCount,
+      difficulty: s.difficulty,
+      hasPlayer: true,
+      playerWeaponDef: primary,
+      playerSecondaryDef: getWeapon(loadout.secondary.weaponId),
+      playerSecondaryAttachments: loadout.secondary.attachments,
+      playerName: payload.name,
+      playerAttachments: loadout.primary.attachments,
+      playerCamo: camo,
+      playerStreaks: loadout.streaks,
+      playerPerks: loadout.perks,
+      playerTactical: loadout.tactical,
+      playerLethal: loadout.lethal,
+      respawnDelay: 4,
+      warmup: 2,
+      hardcore: s.hardcore,
+      audio: this.makeMatchAudio(),
+      net: payload.net,
+      isHost: payload.isHost,
+      selfId: payload.selfId,
+      roster: payload.roster,
+    });
+    this.match.build();
+    this.killfeedShown = 0;
+    this.prevPlayerHealth = this.match.player?.maxHealth ?? 100;
+    this.streakBound = false;
+    this.hardcore = s.hardcore;
     if (this.hardcore) this.hud.hide();
     else this.hud.show();
     this.music.setIntensity(0.4);

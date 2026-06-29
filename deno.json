@@ -5,6 +5,7 @@
   "tasks": {
     "run-browser": "deno run -A src/server/server.ts",
     "run-client": "deno run -A --unstable-ffi src/server/desktop.ts",
+    "server": "DEADSHOT_HOST=0.0.0.0 DEADSHOT_NO_OPEN=1 DEADSHOT_PORT=8090 deno run -A src/server/server.ts",
     "fetch-assets": "deno run -A src/tools/fetch_assets.ts",
     "lint": "deno lint",
     "fmt": "deno fmt",

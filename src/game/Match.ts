@@ -34,6 +34,9 @@ import { getStreak, STREAKS } from "../streaks/streaks.ts";
 import type { Streak, StreakContext, StreakOwner } from "../streaks/Streak.ts";
 import { EquipmentManager, type LethalId, type TacticalId } from "../tacticals/EquipmentManager.ts";
 import type { EquipmentContext } from "../tacticals/Equipment.ts";
+import type { NetClient } from "../net/NetClient.ts";
+import { RemoteActor } from "./RemoteActor.ts";
+import type { BotStateMsg, LobbyPlayer, PlayerStateMsg } from "../net/protocol.ts";
 
 export type MatchState = "warmup" | "live" | "end";
 
@@ -86,6 +89,11 @@ export interface MatchOptions {
   warmup?: number;
   hardcore?: boolean;
   audio?: MatchAudio;
+  // ---- Networked (relay) mode ----
+  net?: NetClient;
+  isHost?: boolean;
+  selfId?: number;
+  roster?: LobbyPlayer[];
 }
 
 const BOT_WEAPONS = ["m4", "ak12", "mp5", "scarl", "p90", "mk14", "uzi", "m16a4"];
@@ -129,6 +137,13 @@ export class Match {
   private warmupTimer: number;
   private prevAlive = new Map<number, boolean>();
 
+  // ---- Networked (relay) mode ----
+  private net: NetClient | null = null;
+  private isHost = false;
+  private remotes = new Map<number, RemoteActor>();
+  private netSendTimer = 0;
+  private static readonly BOT_BASE = 10000; // host bot ids start here (avoid player ids)
+
   constructor(
     private scene: Scene,
     private camera: Camera | null,
@@ -158,14 +173,18 @@ export class Match {
     this.navigator = new Navigator(map.waypoints);
     this.spawner = new Spawner(map.spawns);
     this.streakCtx = this.buildStreakContext();
+    this.net = this.opts.net ?? null;
+    this.isHost = !!this.opts.isHost;
+    const net = this.net;
 
     const total = this.opts.botCount + (this.opts.hasPlayer ? 1 : 0);
     let slot = 0;
+    const playerId = net ? (this.opts.selfId ?? 0) : 0;
 
     if (this.opts.hasPlayer && this.camera && this.input) {
-      const team = this.mode.assignTeam(slot++, total);
+      const team = net ? this.rosterTeam(playerId) : this.mode.assignTeam(slot++, total);
       this.player = new Player(this.camera, this.input, this.screen, {
-        id: 0,
+        id: playerId,
         team,
         weaponDef: this.opts.playerWeaponDef ?? getWeapon("m4"),
         attachments: this.opts.playerAttachments ?? [],
@@ -179,7 +198,7 @@ export class Match {
           this.opts.playerSecondaryAttachments ?? [],
         );
       }
-      if (this.opts.playerStreaks) this.streaks.setLoadout(0, this.opts.playerStreaks);
+      if (this.opts.playerStreaks) this.streaks.setLoadout(playerId, this.opts.playerStreaks);
       this.playerHasScavenger = !!this.opts.playerPerks?.includes("scavenger");
       if (audio) {
         this.player.events = {
@@ -188,27 +207,41 @@ export class Match {
           onHit: (hs, killed) => audio.hitMarker(hs, killed),
         };
       }
-      this.scoreboard.register(0, this.opts.playerName ?? "You", team, true);
+      this.scoreboard.register(playerId, this.opts.playerName ?? "You", team, true);
       this.actorList.push(this.player);
     }
 
-    for (let i = 0; i < this.opts.botCount; i++) {
-      const team = this.mode.assignTeam(slot++, total);
-      const id = 1 + i;
-      const def = getWeapon(BOT_WEAPONS[i % BOT_WEAPONS.length]);
-      const bot = new Bot({
-        id,
-        team,
-        difficulty: this.opts.difficulty,
-        character: new ProceduralHuman({ team, accentIndex: i }),
-        weaponDef: def,
-        spawn: new THREE.Vector3(),
-        onShot: audio ? (wid, pos) => audio.enemyShot(wid, pos) : undefined,
-      });
-      this.scoreboard.register(id, `Bot ${id}`, team);
-      this.scene.add(bot.character.root);
-      this.bots.push(bot);
-      this.actorList.push(bot);
+    // Bots: simulated locally only single-player or by the room host.
+    if (!net || this.isHost) {
+      for (let i = 0; i < this.opts.botCount; i++) {
+        const team = net ? this.netTeamForIndex(i) : this.mode.assignTeam(slot++, total);
+        const id = net ? Match.BOT_BASE + i : 1 + i;
+        const def = getWeapon(BOT_WEAPONS[i % BOT_WEAPONS.length]);
+        const bot = new Bot({
+          id,
+          team,
+          difficulty: this.opts.difficulty,
+          character: new ProceduralHuman({ team, accentIndex: i }),
+          weaponDef: def,
+          spawn: new THREE.Vector3(),
+          onShot: audio ? (wid, pos) => audio.enemyShot(wid, pos) : undefined,
+        });
+        this.scoreboard.register(id, `Bot ${id}`, team);
+        this.scene.add(bot.character.root);
+        this.bots.push(bot);
+        this.actorList.push(bot);
+      }
+    }
+
+    // Remote players (mirrored from peers) + network message handlers.
+    if (net) {
+      const roster = this.opts.roster ?? [];
+      let accent = 0;
+      for (const pl of roster) {
+        if (pl.id === playerId) continue;
+        this.addRemote(pl.id, pl.team, pl.name, accent++);
+      }
+      this.registerNetHandlers();
     }
 
     // Hardcore: 30 HP, no regen, applied before spawns set health = maxHealth.
@@ -220,12 +253,19 @@ export class Match {
       }
     }
 
-    // Initial spawns (no enemies yet -> round-robin).
-    for (const a of this.actorList) {
-      const sp = this.spawner.pick(a.team, []);
+    // Initial spawns. Place actors one at a time, each avoiding the enemies
+    // already placed, so teams start apart (enemies far from allies).
+    const placed: { team: TeamId; pos: THREE.Vector3 }[] = [];
+    for (const a of this.ownedActors()) {
+      const enemies = placed
+        .filter((p) => a.team === "ffa" || p.team !== a.team)
+        .map((p) => p.pos);
+      const sp = this.spawner.pick(a.team, enemies);
       this.placeActor(a, sp.position, sp.yaw);
+      placed.push({ team: a.team, pos: sp.position.clone() });
       this.prevAlive.set(a.id, true);
     }
+    for (const ra of this.remotes.values()) this.prevAlive.set(ra.id, true);
 
     // Player throwables.
     const eqCtx: EquipmentContext = {
@@ -318,19 +358,25 @@ export class Match {
       bounds: this.map.bounds,
     };
     for (const bot of this.bots) bot.update(dt, ctx);
+    // Remote players/bots are driven by the network, not simulated locally.
+    for (const ra of this.remotes.values()) ra.update(dt);
+    // Sync our transform to peers every frame (including warmup, so players see
+    // each other before the match goes live).
+    if (this.net) this.netSync(dt);
 
     if (this.state !== "live") return;
     this.elapsed += dt;
 
-    // Deaths -> scoreboard + killfeed.
-    for (const a of this.actorList) {
+    // Deaths -> scoreboard + killfeed. Only watch actors WE own; remote deaths
+    // arrive over the network (see onRemoteDeath).
+    for (const a of this.ownedActors()) {
       const was = this.prevAlive.get(a.id) ?? true;
       if (was && !a.alive) this.onDeath(a);
       this.prevAlive.set(a.id, a.alive);
     }
 
-    // Respawns.
-    for (const a of this.actorList) {
+    // Respawns (owned actors only; remotes respawn on their owner).
+    for (const a of this.ownedActors()) {
       if (!a.alive && this.timeDead(a) >= this.respawnDelay) {
         const enemies = this.enemyPositions(a.team);
         const sp = this.spawner.pick(a.team, enemies);
@@ -370,6 +416,7 @@ export class Match {
     return out;
   }
 
+  /** A locally-owned actor died: score it, drop loot, and broadcast (networked). */
   private onDeath(victim: Actor): void {
     const info = (victim as Bot | Player).lastDamage;
     const killerId = info?.sourceId;
@@ -378,6 +425,36 @@ export class Match {
     if (killerId !== undefined && killerId !== victim.id) {
       this.streaks.addScore(killerId, SCORE.kill + (headshot ? SCORE.headshotBonus : 0));
     }
+    this.addKillfeed(killerId, victim, info?.weaponId, headshot);
+    this.dropVictimWeapon(victim);
+    this.maybeScavenger(victim);
+    if (this.net) this.net.sendDeath(victim.id, killerId, info?.weaponId, headshot);
+  }
+
+  /** A remote-owned actor died (relayed): mirror score + loot, no re-broadcast. */
+  private onRemoteDeath(
+    victimId: number,
+    killerId: number | undefined,
+    weaponId: string | undefined,
+    headshot: boolean,
+  ): void {
+    this.scoreboard.recordKill(killerId, victimId, headshot);
+    const victim = this.actorList.find((a) => a.id === victimId);
+    if (!victim) return;
+    this.addKillfeed(killerId, victim, weaponId, headshot);
+    this.dropVictimWeapon(victim);
+    this.maybeScavenger(victim);
+    const ra = this.remotes.get(victimId);
+    if (ra) ra.markDead();
+    this.prevAlive.set(victimId, false);
+  }
+
+  private addKillfeed(
+    killerId: number | undefined,
+    victim: Actor,
+    weaponId: string | undefined,
+    headshot: boolean,
+  ): void {
     const killer = killerId !== undefined && killerId !== victim.id
       ? this.scoreboard.get(killerId)
       : undefined;
@@ -385,24 +462,32 @@ export class Match {
     this.killfeed.push({
       killer: killer?.name,
       killerTeam: killer?.team,
-      weaponId: info?.weaponId,
+      weaponId,
       victim: v.name,
       victimTeam: v.team,
       headshot,
       time: this.elapsed,
     });
     if (this.killfeed.length > 8) this.killfeed.shift();
+  }
 
-    // Drop the victim's weapon (with its leftover ammo) for anyone to pick up.
-    const vw = (victim as Bot | Player).weapon;
-    if (vw) {
-      this.addWeaponDrop(vw.def, vw.magazine, vw.reserve, victim.position(new THREE.Vector3()));
+  /** Drop the victim's weapon (with leftover ammo) for anyone to pick up. */
+  private dropVictimWeapon(victim: Actor): void {
+    const pos = victim.position(new THREE.Vector3());
+    if (victim instanceof RemoteActor) {
+      const def = getWeapon(victim.weaponId);
+      this.addWeaponDrop(def, def.magazine, def.reserve, pos);
+    } else {
+      const w = (victim as Bot | Player).weapon;
+      if (w) this.addWeaponDrop(w.def, w.magazine, w.reserve, pos);
     }
+  }
 
-    // Scavenger perk: enemies drop ammo the player can collect.
+  /** Scavenger perk: enemies drop ammo the local player can collect. */
+  private maybeScavenger(victim: Actor): void {
     if (
       this.playerHasScavenger && this.player &&
-      victim !== (this.player as unknown as Actor) &&
+      victim.id !== this.player.id &&
       (this.player.team === "ffa" || victim.team !== this.player.team)
     ) {
       this.spawnAmmoPickup(victim);
@@ -488,7 +573,18 @@ export class Match {
       expire: this.elapsed + 30,
       use: (collectorId) => {
         if (this.player && collectorId === this.player.id) {
+          // Drop the gun we're holding where we stand so the swap is reversible.
+          const held = this.player.weapon;
+          const prevDef = held.def;
+          const prevMag = held.magazine;
+          const prevReserve = held.reserve;
           this.player.equipDropped(def, magazine, reserve);
+          this.addWeaponDrop(
+            prevDef,
+            prevMag,
+            prevReserve,
+            this.player.position(new THREE.Vector3()),
+          );
         }
       },
     });
@@ -582,6 +678,146 @@ export class Match {
       }
       this.interactables = this.interactables.filter((it) => !remove.has(it));
     }
+  }
+
+  // ---- Networking (relay) ----
+
+  private rosterTeam(id: number): TeamId {
+    return this.opts.roster?.find((p) => p.id === id)?.team ?? "blue";
+  }
+
+  private netTeamForIndex(i: number): TeamId {
+    return this.modeId === "ffa" ? "ffa" : (i % 2 === 0 ? "blue" : "red");
+  }
+
+  /** Actors this client simulates + owns authoritatively. */
+  private ownedActors(): Actor[] {
+    if (!this.net) return this.actorList;
+    const out: Actor[] = [];
+    if (this.player) out.push(this.player);
+    if (this.isHost) { for (const b of this.bots) out.push(b); }
+    return out;
+  }
+
+  private ownedById(id: number): Actor | null {
+    if (this.player && this.player.id === id) return this.player;
+    if (this.isHost) {
+      const b = this.bots.find((x) => x.id === id);
+      if (b) return b;
+    }
+    return null;
+  }
+
+  private addRemote(id: number, team: TeamId, name: string, accent: number): RemoteActor {
+    const ra = new RemoteActor(
+      id,
+      team,
+      name,
+      (target, info) => this.net?.sendHit(target, info.amount, info.headshot, info.weaponId),
+      accent % 6,
+    );
+    this.remotes.set(id, ra);
+    this.scene.add(ra.object3d);
+    this.actorList.push(ra);
+    this.scoreboard.register(id, name, team, false);
+    this.prevAlive.set(id, true);
+    return ra;
+  }
+
+  private removeRemote(id: number): void {
+    const ra = this.remotes.get(id);
+    if (!ra) return;
+    this.scene.dynamicRoot.remove(ra.object3d);
+    ra.dispose();
+    this.remotes.delete(id);
+    const i = this.actorList.indexOf(ra);
+    if (i >= 0) this.actorList.splice(i, 1);
+  }
+
+  private applyBotState(bs: BotStateMsg): void {
+    let ra = this.remotes.get(bs.id);
+    if (!ra) ra = this.addRemote(bs.id, bs.team, `Bot ${bs.id}`, this.remotes.size);
+    ra.team = bs.team;
+    ra.applyState({
+      x: bs.x,
+      y: bs.y,
+      z: bs.z,
+      yaw: bs.yaw,
+      anim: bs.anim,
+      alive: bs.alive,
+      weaponId: bs.weaponId,
+    });
+  }
+
+  private registerNetHandlers(): void {
+    this.net!.on({
+      onState: (from, s) => this.remotes.get(from)?.applyState(s),
+      onBots: (_from, b) => {
+        for (const bs of b) this.applyBotState(bs);
+      },
+      onHit: (from, target, dmg, headshot, weaponId) => {
+        const owned = this.ownedById(target);
+        if (owned && owned.alive) {
+          owned.applyDamage({
+            amount: dmg,
+            headshot,
+            sourceTeam: this.teamOf(from),
+            sourceId: from,
+            weaponId,
+          });
+        }
+      },
+      onDeath: (_from, victim, killer, weaponId, headshot) =>
+        this.onRemoteDeath(victim, killer, weaponId, headshot),
+      onPeerLeft: (id) => this.removeRemote(id),
+    });
+  }
+
+  private netSync(dt: number): void {
+    this.netSendTimer -= dt;
+    if (this.netSendTimer > 0) return;
+    this.netSendTimer = 0.05; // ~20 Hz
+    if (this.player) this.net!.sendState(this.playerStateMsg());
+    if (this.isHost && this.bots.length) {
+      this.net!.sendBots(this.bots.map((b) => this.botStateMsg(b)));
+    }
+  }
+
+  private playerStateMsg(): PlayerStateMsg {
+    const p = this.player!;
+    let yaw = 0;
+    if (this.camera) {
+      const d = this.camera.getLookDirection(new THREE.Vector3());
+      yaw = Math.atan2(d.x, d.z);
+    }
+    const moving = !!this.input &&
+      (this.input.axis("back", "forward") !== 0 || this.input.axis("left", "right") !== 0);
+    const firing = !!this.input && this.input.isDown("fire");
+    const anim = !p.alive ? "die" : firing ? "shoot" : moving ? "run" : "idle";
+    return {
+      x: p.feet.x,
+      y: p.feet.y,
+      z: p.feet.z,
+      yaw,
+      anim,
+      alive: p.alive,
+      weaponId: p.weapon.def.id,
+    };
+  }
+
+  private botStateMsg(bot: Bot): BotStateMsg {
+    const anim = !bot.alive ? "die" : bot.firing ? "shoot" : bot.moving ? "run" : "idle";
+    return {
+      id: bot.id,
+      x: bot.feet.x,
+      y: bot.feet.y,
+      z: bot.feet.z,
+      yaw: bot.yaw,
+      anim,
+      alive: bot.alive,
+      team: bot.team,
+      weaponId: bot.weapon.def.id,
+    };
   }
 
   formatWinner(): string {
@@ -702,6 +938,12 @@ export class Match {
       b.character.dispose();
     }
     this.bots = [];
+    for (const ra of this.remotes.values()) {
+      this.scene.dynamicRoot.remove(ra.object3d);
+      ra.dispose();
+    }
+    this.remotes.clear();
+    this.net?.clearHandlers();
     this.actorList = [];
     this.pool?.clear();
     this.vfx?.clear();

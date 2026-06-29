@@ -14,6 +14,10 @@ import { denoPlugins } from "@luca/esbuild-deno-loader";
 import { contentType } from "@std/media-types";
 import { extname, join, normalize, resolve } from "@std/path";
 import { walk } from "@std/fs";
+import { RoomManager } from "./multiplayer.ts";
+
+/** Single relay manager shared across all WebSocket connections. */
+const rooms = new RoomManager();
 
 const REPO_ROOT = resolve(new URL("../../", import.meta.url).pathname);
 const PUBLIC_DIR = join(REPO_ROOT, "public");
@@ -158,6 +162,16 @@ async function handler(req: Request): Promise<Response> {
     return new Response("ok", { status: 200 });
   }
 
+  // Multiplayer relay endpoint.
+  if (url.pathname === "/ws") {
+    if (req.headers.get("upgrade")?.toLowerCase() !== "websocket") {
+      return new Response("expected a websocket upgrade", { status: 426 });
+    }
+    const { socket, response } = Deno.upgradeWebSocket(req);
+    rooms.accept(socket);
+    return response;
+  }
+
   return serveStatic(url.pathname);
 }
 
@@ -183,7 +197,7 @@ export interface RunningServer {
 /** Start the HTTP server. Resolves once it is listening. */
 export function startServer(opts: ServerOptions = {}): Promise<RunningServer> {
   const port = opts.port ?? Number(Deno.env.get("DEADSHOT_PORT") ?? 8080);
-  const hostname = opts.hostname ?? "127.0.0.1";
+  const hostname = opts.hostname ?? Deno.env.get("DEADSHOT_HOST") ?? "127.0.0.1";
 
   return new Promise((resolvePromise) => {
     const ac = new AbortController();
@@ -215,5 +229,6 @@ export function startServer(opts: ServerOptions = {}): Promise<RunningServer> {
 }
 
 if (import.meta.main) {
-  await startServer({ open: true });
+  // DEADSHOT_NO_OPEN=1 keeps the browser closed (used by `deno task server`).
+  await startServer({ open: Deno.env.get("DEADSHOT_NO_OPEN") !== "1" });
 }

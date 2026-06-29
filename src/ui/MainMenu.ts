@@ -8,6 +8,7 @@ import { button, clearChildren, el } from "./dom.ts";
 
 export interface MainMenuOptions {
   onPlay: () => void;
+  onMultiplayer: () => void;
   onCreateClass: () => void;
   onOptions: () => void;
   onQuit: () => void;
@@ -97,6 +98,7 @@ export class MainMenu {
       fontSize: "18px",
     };
     buttons.appendChild(button("PLAY", () => this.opts.onPlay(), wide));
+    buttons.appendChild(button("MULTIPLAYER", () => this.opts.onMultiplayer(), wide));
     buttons.appendChild(button("CREATE-A-CLASS", () => this.opts.onCreateClass(), wide));
     buttons.appendChild(button("OPTIONS", () => this.toggleOptions(), wide));
     buttons.appendChild(
