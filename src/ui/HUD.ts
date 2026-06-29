@@ -259,8 +259,10 @@ export class HUD {
     });
 
     // ---- Center: interaction prompt ----
+    // Parented to the root (not the hideable HUD layer) so pickups still prompt
+    // in hardcore mode, where the rest of the HUD is hidden.
     this.prompt = el("div", {
-      parent: this.layer,
+      parent: root,
       text: "",
       style: {
         position: "absolute",
@@ -606,6 +608,7 @@ export class HUD {
   }
 
   dispose(): void {
+    this.prompt.remove();
     this.layer.remove();
   }
 }

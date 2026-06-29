@@ -37,6 +37,21 @@ const PRIMARY_SLOTS: AttachmentSlot[] = [
 
 const PERK_TIERS: PerkTier[] = ["blue", "red", "gold"];
 
+// Tactical/lethal descriptions (these ids carry no metadata of their own).
+const EQUIPMENT_DESC: Record<string, string> = {
+  flashbang: "Blinds and deafens nearby enemies.",
+  smoke: "Deploys a concealing smoke screen.",
+  stun: "Slows an enemy's movement and aim.",
+  snapshot: "Briefly outlines enemies through walls.",
+  frag: "Cookable fragmentation grenade.",
+  semtex: "Sticky timed explosive.",
+  knife: "Thrown one-hit-kill blade (recoverable).",
+  c4: "Remote charge — double-tap to detonate.",
+  molotov: "Pool of fire that denies an area.",
+  thermite: "Burning incendiary that sticks to surfaces.",
+  claymore: "Proximity-triggered directional mine.",
+};
+
 const CATEGORY_LABELS: Record<WeaponCategory, string> = {
   assault: "Assault Rifles",
   smg: "SMGs",
@@ -524,13 +539,14 @@ export class ClassEditor {
     ids: readonly string[],
     selected: string,
     onChange: (id: string) => void,
+    describe?: (id: string) => string,
   ): HTMLSelectElement {
     const sel = el("select");
     this.styleSelect(sel);
     for (const id of ids) {
       const opt = el("option", { text: titleCase(id) });
       opt.value = id;
-      opt.title = titleCase(id);
+      opt.title = describe?.(id) ?? titleCase(id);
       sel.appendChild(opt);
     }
     sel.value = selected;
@@ -546,13 +562,13 @@ export class ClassEditor {
     const tac = this.idSelect(TACTICAL_IDS, this.loadout.tactical, (id) => {
       this.loadout.tactical = id;
       this.persist();
-    });
+    }, (id) => EQUIPMENT_DESC[id] ?? titleCase(id));
     this.labeledRow(card, "Tactical", tac);
 
     const lethal = this.idSelect(LETHAL_IDS, this.loadout.lethal, (id) => {
       this.loadout.lethal = id;
       this.persist();
-    });
+    }, (id) => EQUIPMENT_DESC[id] ?? titleCase(id));
     this.labeledRow(card, "Lethal", lethal);
 
     const fieldUpgrades = attachmentsForSlot("fieldUpgrade");

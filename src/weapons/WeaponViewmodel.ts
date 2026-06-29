@@ -44,8 +44,12 @@ export class WeaponViewmodel {
     camoColor = 0x2b2f36,
     attachments: ReadonlyArray<Attachment | string> = [],
   ): void {
-    // Rebuild the gun geometry for this category.
+    // Rebuild the gun geometry for this category. Dispose the previous meshes'
+    // geometry/materials first — clear() only detaches, so without this every
+    // weapon swap / attachment change / editor preview leaks GPU resources.
+    disposeChildren(this.gun);
     this.gun.clear();
+    this.camoMat.dispose();
     this.camoMat = createToonMaterial({ color: camoColor });
     buildGun(this.gun, def.category, this.camoMat);
     // Mount the equipped attachments (optics, barrel, grip, mag, stock).
@@ -122,6 +126,19 @@ export class WeaponViewmodel {
       }
     });
   }
+}
+
+/** Dispose every mesh geometry + material under an object (outline hulls share
+ * parent geometry, so a double-dispose may occur — that is harmless). */
+function disposeChildren(obj: THREE.Object3D): void {
+  obj.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    m.geometry?.dispose();
+    const mat = m.material;
+    if (Array.isArray(mat)) mat.forEach((x) => x.dispose());
+    else (mat as THREE.Material)?.dispose();
+  });
 }
 
 function approach(cur: number, target: number, maxStep: number): number {

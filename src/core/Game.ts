@@ -442,7 +442,6 @@ export class Game {
       this.hud.setWeaponName(p.weapon.def.name);
       this.hud.setScoreline(blue, red, m.modeId);
       this.hud.setTimer(m.timeLeft);
-      this.hud.setPrompt(m.interactPrompt);
 
       // Streak progress.
       const score = m.streaks.scoreOf(p.id);
@@ -513,6 +512,10 @@ export class Game {
         );
       }
     } // end !hardcore HUD block
+
+    // Interaction prompt shows in every mode (the prompt lives outside the
+    // hideable HUD layer, so hardcore players still see pickups).
+    this.hud.setPrompt(m.interactPrompt);
 
     // Scorestreak activation: hold Z (streaks) + press 1 / 2 / 3 to call in the
     // streak in that loadout slot (if it's been earned). Works in every mode.

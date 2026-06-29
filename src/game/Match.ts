@@ -22,6 +22,7 @@ import type { Difficulty } from "../characters/BotAI.ts";
 import { ProceduralHuman } from "../characters/ProceduralHuman.ts";
 import { ProjectilePool } from "../weapons/Projectile.ts";
 import { getWeapon, type WeaponDef } from "../weapons/WeaponDefinition.ts";
+import type { Attachment } from "../weapons/AttachmentDefinitions.ts";
 import { MatchWorld } from "./MatchWorld.ts";
 import { Player } from "./Player.ts";
 import { Scoreboard } from "./Scoreboard.ts";
@@ -142,7 +143,9 @@ export class Match {
   private isHost = false;
   private remotes = new Map<number, RemoteActor>();
   private netSendTimer = 0;
-  private static readonly BOT_BASE = 10000; // host bot ids start here (avoid player ids)
+  // Host bot ids start far above any plausible server-assigned connection id so
+  // they never collide with player ids over a long-lived relay server.
+  private static readonly BOT_BASE = 1_000_000;
 
   constructor(
     private scene: Scene,
@@ -439,6 +442,11 @@ export class Match {
     headshot: boolean,
   ): void {
     this.scoreboard.recordKill(killerId, victimId, headshot);
+    // Credit the killer's streak score locally too, so the killer's own client
+    // (which only ever sees this kill as a relayed death) fills its streak meter.
+    if (killerId !== undefined && killerId !== victimId) {
+      this.streaks.addScore(killerId, SCORE.kill + (headshot ? SCORE.headshotBonus : 0));
+    }
     const victim = this.actorList.find((a) => a.id === victimId);
     if (!victim) return;
     this.addKillfeed(killerId, victim, weaponId, headshot);
@@ -471,14 +479,17 @@ export class Match {
     if (this.killfeed.length > 8) this.killfeed.shift();
   }
 
-  /** Drop the victim's weapon (with leftover ammo) for anyone to pick up. */
+  /** Drop the victim's weapon (with leftover ammo + attachments) to pick up. */
   private dropVictimWeapon(victim: Actor): void {
     const pos = victim.position(new THREE.Vector3());
     if (victim instanceof RemoteActor) {
       const def = getWeapon(victim.weaponId);
       this.addWeaponDrop(def, def.magazine, def.reserve, pos);
+    } else if (victim instanceof Player) {
+      const w = victim.weapon;
+      if (w) this.addWeaponDrop(w.def, w.magazine, w.reserve, pos, victim.currentAttachments);
     } else {
-      const w = (victim as Bot | Player).weapon;
+      const w = (victim as Bot).weapon;
       if (w) this.addWeaponDrop(w.def, w.magazine, w.reserve, pos);
     }
   }
@@ -547,6 +558,7 @@ export class Match {
     magazine: number,
     reserve: number,
     pos: THREE.Vector3,
+    attachments: ReadonlyArray<Attachment | string> = [],
   ): void {
     const group = new THREE.Group();
     const body = new THREE.Mesh(
@@ -573,17 +585,20 @@ export class Match {
       expire: this.elapsed + 30,
       use: (collectorId) => {
         if (this.player && collectorId === this.player.id) {
-          // Drop the gun we're holding where we stand so the swap is reversible.
+          // Drop the gun we're holding (with ITS attachments) so the swap is
+          // reversible — picking the old one back up restores its optics.
           const held = this.player.weapon;
           const prevDef = held.def;
           const prevMag = held.magazine;
           const prevReserve = held.reserve;
-          this.player.equipDropped(def, magazine, reserve);
+          const prevAttachments = [...this.player.currentAttachments];
+          this.player.equipDropped(def, magazine, reserve, attachments);
           this.addWeaponDrop(
             prevDef,
             prevMag,
             prevReserve,
             this.player.position(new THREE.Vector3()),
+            prevAttachments,
           );
         }
       },
@@ -730,6 +745,7 @@ export class Match {
     this.scene.dynamicRoot.remove(ra.object3d);
     ra.dispose();
     this.remotes.delete(id);
+    this.prevAlive.delete(id);
     const i = this.actorList.indexOf(ra);
     if (i >= 0) this.actorList.splice(i, 1);
   }
@@ -851,8 +867,15 @@ export class Match {
     };
   }
 
+  private isStreakActive(id: string): boolean {
+    return this.activeStreaks.some((e) => e.streak.id === id);
+  }
+
   /** Activate a streak for an owner (player UI or bot AI). */
   activateStreak(owner: StreakOwner, streakId: string): void {
+    // Only one attack helicopter may be in the air at a time (leaves it
+    // available so the owner can call it in once the current one leaves).
+    if (streakId === "attack_heli" && this.isStreakActive("attack_heli")) return;
     const streak = getStreak(streakId).create();
     this.activeStreaks.push({ streak, owner });
     this.streaks.markActive(owner.id, streakId);
@@ -866,7 +889,10 @@ export class Match {
   }
 
   private grantRandomStreak(owner: StreakOwner): string {
-    const pick = STREAKS[Math.floor(Math.random() * (STREAKS.length - 1))]; // exclude nuke (last)
+    // Care-package payload pool: never another care package (would recurse into
+    // endless heli drops) and never the match-ending nuke.
+    const pool = STREAKS.filter((s) => s.id !== "care_package" && s.id !== "nuke");
+    const pick = pool[Math.floor(Math.random() * pool.length)];
     this.activateStreak(owner, pick.id);
     return pick.id;
   }

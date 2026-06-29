@@ -151,15 +151,33 @@ export class Player implements Actor {
     );
   }
 
-  /** Pick up a dropped weapon into the current slot, keeping its leftover ammo. */
-  equipDropped(def: WeaponDef, magazine: number, reserve: number): void {
-    const w = this.buildWeapon(def, []);
+  /** Attachments on the currently-equipped weapon (for re-droppable swaps). */
+  get currentAttachments(): ReadonlyArray<Attachment | string> {
+    return this.slotAttachments[this.currentSlot] ?? [];
+  }
+
+  /** Equip a specific carried slot directly (number-key selection). */
+  selectWeapon(slot: number): void {
+    if (slot < 0 || slot >= this.weapons.length || slot === this.currentSlot) return;
+    this.currentSlot = slot;
+    this.weapon.swapIn();
+    this.viewmodel.setWeapon(this.weapon.def, this.camoColor, this.slotAttachments[slot] ?? []);
+  }
+
+  /** Pick up a dropped weapon into the current slot, keeping its ammo + attachments. */
+  equipDropped(
+    def: WeaponDef,
+    magazine: number,
+    reserve: number,
+    attachments: ReadonlyArray<Attachment | string> = [],
+  ): void {
+    const w = this.buildWeapon(def, attachments);
     w.magazine = magazine;
     w.reserve = reserve;
     this.weapons[this.currentSlot] = w;
-    this.slotAttachments[this.currentSlot] = [];
+    this.slotAttachments[this.currentSlot] = attachments;
     w.swapIn();
-    this.viewmodel.setWeapon(def, this.camoColor, []);
+    this.viewmodel.setWeapon(def, this.camoColor, attachments);
   }
 
   // ---- Actor / DamageTarget ----
@@ -218,9 +236,14 @@ export class Player implements Actor {
       this.health = Math.min(this.maxHealth, this.health + REGEN_RATE * dt);
     }
 
-    // Mouse wheel switches between carried weapons.
+    // Mouse wheel switches between carried weapons; 1/2 select a slot directly.
+    // (Gate the number keys on Z so they don't clash with streak hotkeys.)
     const wheel = this.input.consumeWheel();
     if (wheel !== 0) this.switchWeapon(wheel > 0 ? 1 : -1);
+    if (!this.input.isDown("streaks")) {
+      if (this.input.wasKeyPressed("Digit1")) this.selectWeapon(0);
+      else if (this.input.wasKeyPressed("Digit2")) this.selectWeapon(1);
+    }
 
     // Aim from camera.
     this.camera.perspective.getWorldPosition(this.origin);
