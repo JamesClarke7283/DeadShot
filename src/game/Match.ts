@@ -714,7 +714,7 @@ export class Match {
       radius: 1.9,
       botRadius: 0,
       label: `Press E — ${def.name} (${magazine}/${reserve})`,
-      expire: this.elapsed + 30,
+      expire: this.elapsed + 120, // persist so a dropped weapon stays re-pickable
       use: (collectorId) => {
         if (this.player && collectorId === this.player.id) {
           // Drop the gun we're holding (with ITS attachments) so the swap is

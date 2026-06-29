@@ -43,6 +43,7 @@ export interface Settings {
   sfxVolume: number;
   musicVolume: number;
   invertY: boolean;
+  killcam: boolean;
 }
 
 export interface MatchConfig {
@@ -82,6 +83,7 @@ export function defaultSettings(): Settings {
     sfxVolume: 0.9,
     musicVolume: 0.5,
     invertY: false,
+    killcam: true,
   };
 }
 

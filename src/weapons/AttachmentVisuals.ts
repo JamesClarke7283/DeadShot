@@ -37,8 +37,14 @@ export function buildAttachmentMeshes(
   const len = barrelLength(cat);
   const dark = createToonMaterial({ color: 0x16181d });
   const metal = createToonMaterial({ color: 0x30343c });
-  const glass = createToonMaterial({ color: 0x213244, emissive: 0x0a1622 });
-  const redDot = () => new THREE.MeshBasicMaterial({ color: 0xff3b3b });
+  // See-through lens so the optic actually works as a sight when aiming.
+  const glass = createToonMaterial({ color: 0x6fb7ff, emissive: 0x16334a });
+  glass.transparent = true;
+  glass.opacity = 0.2;
+  glass.depthWrite = false;
+  // Reticle dot renders on top of the glass (no depth test) so it's always visible.
+  const redDot = () =>
+    new THREE.MeshBasicMaterial({ color: 0xff3b3b, depthTest: false, transparent: true });
 
   const slot = idsBySlot(attachments);
   const topZ = -len * 0.32; // over the receiver
@@ -52,35 +58,42 @@ export function buildAttachmentMeshes(
     g.add(mount);
 
     if (optic === "reddot") {
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.006, 8, 16), dark);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.005, 8, 16), dark);
       ring.position.set(0, topY + 0.04, topZ);
       g.add(ring);
-      const dot = new THREE.Mesh(new THREE.SphereGeometry(0.006, 8, 8), redDot());
+      const dot = new THREE.Mesh(new THREE.SphereGeometry(0.005, 8, 8), redDot());
       dot.position.set(0, topY + 0.04, topZ);
+      dot.renderOrder = 12;
       g.add(dot);
     } else if (optic === "holo") {
       const frame = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.012, 0.05), dark);
       frame.position.set(0, topY + 0.018, topZ);
       g.add(frame);
-      const pane = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.05, 0.006), glass);
+      const pane = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.05, 0.004), glass);
       pane.position.set(0, topY + 0.05, topZ + 0.01);
       pane.rotation.x = -0.25;
       g.add(pane);
       const reticle = new THREE.Mesh(new THREE.SphereGeometry(0.006, 8, 8), redDot());
       reticle.position.set(0, topY + 0.05, topZ + 0.012);
+      reticle.renderOrder = 12;
       g.add(reticle);
     } else if (optic === "acog") {
-      const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.18, 12), metal);
+      // Hollow tube (open ends) so you can see down the bore when aiming.
+      const tube = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.028, 0.028, 0.18, 14, 1, true),
+        metal,
+      );
       tube.rotation.x = Math.PI / 2;
       tube.position.set(0, topY + 0.045, topZ);
       addOutline(tube, { thickness: 0.01 });
       g.add(tube);
-      const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.01, 12), glass);
+      const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.006, 14), glass);
       lens.rotation.x = Math.PI / 2;
-      lens.position.set(0, topY + 0.045, topZ + 0.085);
+      lens.position.set(0, topY + 0.045, topZ + 0.088);
       g.add(lens);
-      const reticle = new THREE.Mesh(new THREE.SphereGeometry(0.005, 8, 8), redDot());
-      reticle.position.set(0, topY + 0.045, topZ + 0.082);
+      const reticle = new THREE.Mesh(new THREE.SphereGeometry(0.004, 8, 8), redDot());
+      reticle.position.set(0, topY + 0.045, topZ + 0.04);
+      reticle.renderOrder = 12;
       g.add(reticle);
     }
   }

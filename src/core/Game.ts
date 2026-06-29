@@ -439,9 +439,10 @@ export class Game {
     m.update(dt);
 
     // Killcam: start on death, then own the frame until respawn / skip.
+    // (takeKillcam always clears the pending capture; honor the user's setting.)
     if (!this.killcam) {
       const kc = m.takeKillcam();
-      if (kc) this.beginKillcam(kc);
+      if (kc && this.storage.getSettings().killcam !== false) this.beginKillcam(kc);
     }
     if (this.killcam) {
       this.updateKillcam(dt);

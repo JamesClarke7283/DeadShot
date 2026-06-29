@@ -111,9 +111,40 @@ export class PreMatchMenu {
     this.buildDifficulty(panel);
     this.buildClassSlot(panel);
     this.buildHardcore(panel);
+    this.buildKillcamToggle(panel);
     this.buildFooter(panel);
 
     return overlay;
+  }
+
+  private buildKillcamToggle(parent: HTMLElement): void {
+    const sec = this.section(parent);
+    const label = el("label", {
+      parent: sec,
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: "10px",
+        cursor: "pointer",
+        pointerEvents: "auto",
+        font: "700 15px/1 'Segoe UI', system-ui, sans-serif",
+      },
+    });
+    const enabled = this.storage.getSettings().killcam !== false;
+    const check = el("input", {
+      parent: label,
+      attrs: { type: "checkbox" },
+      style: { width: "18px", height: "18px", accentColor: "#9fd13e", pointerEvents: "auto" },
+    });
+    check.checked = enabled;
+    el("span", {
+      parent: label,
+      text: "KILLCAM",
+      style: { letterSpacing: "0.1em", color: "#e6edf5" },
+    });
+    check.addEventListener("change", () => {
+      this.storage.updateSettings({ killcam: check.checked });
+    });
   }
 
   private sectionLabel(parent: HTMLElement, text: string): void {
