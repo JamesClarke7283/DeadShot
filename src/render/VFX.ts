@@ -21,6 +21,8 @@ export class VFX implements VFXSink {
   private root = new THREE.Group();
   private transients: Transient[] = [];
   private decals: THREE.Mesh[] = [];
+  /** Optional audio hook fired on every explosion (set by the Match). */
+  onExplosion?: (center: THREE.Vector3, radius: number) => void;
 
   private sparkGeo = new THREE.SphereGeometry(0.06, 6, 6);
   private holeGeo = new THREE.CircleGeometry(0.08, 10);
@@ -138,6 +140,7 @@ export class VFX implements VFXSink {
   }
 
   explosion(center: THREE.Vector3, radius: number): void {
+    this.onExplosion?.(center, radius);
     const ball = new THREE.Mesh(
       this.explosionGeo,
       new THREE.MeshBasicMaterial({ color: 0xff8a3c, transparent: true, depthWrite: false }),

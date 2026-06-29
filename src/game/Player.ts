@@ -50,6 +50,11 @@ export class Player implements Actor {
   private viewmodel: WeaponViewmodel;
   private camoColor: number;
   private attachments: ReadonlyArray<Attachment | string>;
+  events?: {
+    onShot?(weaponId: string): void;
+    onReload?(): void;
+    onHit?(headshot: boolean, killed: boolean): void;
+  };
 
   private readonly origin = new THREE.Vector3();
   private readonly dir = new THREE.Vector3();
@@ -88,8 +93,15 @@ export class Player implements Actor {
       weaponId: def.id,
       id: this.id,
     }, {
-      onShot: () => this.viewmodel.onShot(),
-      onReloadStart: (_empty, dur) => this.viewmodel.startReload(dur),
+      onShot: () => {
+        this.viewmodel.onShot();
+        this.events?.onShot?.(def.id);
+      },
+      onReloadStart: (_empty, dur) => {
+        this.viewmodel.startReload(dur);
+        this.events?.onReload?.();
+      },
+      onHit: (headshot, killed) => this.events?.onHit?.(headshot, killed),
     });
     this.viewmodel.setWeapon(def, this.camoColor);
   }

@@ -30,6 +30,8 @@ export interface WeaponHooks {
   onReloadEnd?(): void;
   onEmptyClick?(): void;
   onSwapIn?(): void;
+  /** Called when one of this weapon's bullets damages an enemy (for hitmarkers). */
+  onHit?(headshot: boolean, killed: boolean): void;
 }
 
 const HITSCAN_RANGE = 500;
@@ -194,6 +196,7 @@ export class Weapon {
         const headshot = hit.headshot ?? target.isHead(hit.object);
         let dmg = damageAtRange(this.stats.range, this.stats.damage, hit.distance);
         if (headshot) dmg *= this.stats.headshotMultiplier;
+        const wasAlive = target.alive;
         target.applyDamage({
           amount: dmg,
           headshot,
@@ -201,6 +204,7 @@ export class Weapon {
           weaponId: this.def.id,
           sourceId: this.shooter.id,
         });
+        this.hooks.onHit?.(headshot, wasAlive && !target.alive);
       }
     } else {
       fx.tracer(muzzle, aim.origin.clone().addScaledVector(dir, HITSCAN_RANGE));

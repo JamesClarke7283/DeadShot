@@ -30,6 +30,8 @@ import type { TeamId } from "../core/types.ts";
 import { ScorestreakManager } from "../streaks/ScorestreakManager.ts";
 import { getStreak, STREAKS } from "../streaks/streaks.ts";
 import type { Streak, StreakContext, StreakOwner } from "../streaks/Streak.ts";
+import { EquipmentManager, type LethalId, type TacticalId } from "../tacticals/EquipmentManager.ts";
+import type { EquipmentContext } from "../tacticals/Equipment.ts";
 
 export type MatchState = "warmup" | "live" | "end";
 
@@ -43,6 +45,14 @@ export interface KillEvent {
   time: number;
 }
 
+export interface MatchAudio {
+  playerShot(weaponId: string): void;
+  playerReload(): void;
+  hitMarker(headshot: boolean, killed: boolean): void;
+  enemyShot(weaponId: string, pos: THREE.Vector3): void;
+  explosion(pos: THREE.Vector3, radius: number): void;
+}
+
 export interface MatchOptions {
   mapId: string;
   mode: ModeRules;
@@ -51,8 +61,14 @@ export interface MatchOptions {
   hasPlayer: boolean;
   playerWeaponDef?: WeaponDef;
   playerName?: string;
+  playerAttachments?: string[];
+  playerCamo?: number;
+  playerStreaks?: string[];
+  playerTactical?: string;
+  playerLethal?: string;
   respawnDelay?: number;
   warmup?: number;
+  audio?: MatchAudio;
 }
 
 const BOT_WEAPONS = ["m4", "ak12", "mp5", "scarl", "p90", "mk14", "uzi", "m16a4"];
@@ -62,6 +78,7 @@ export class Match {
   elapsed = 0;
   winner?: TeamId | number;
   winReason?: "score" | "time";
+  readonly modeId: "tdm" | "ffa";
   readonly scoreboard = new Scoreboard();
   readonly streaks = new ScorestreakManager(STREAKS);
   readonly killfeed: KillEvent[] = [];
@@ -74,6 +91,8 @@ export class Match {
   private counterUAV = new Map<TeamId, number>();
   private streakCtx!: StreakContext;
   private botStreakTimer = 0;
+  private equipment!: EquipmentManager;
+  private lastThrowG = -1;
 
   private actorList: Actor[] = [];
   private map!: MapBuild;
@@ -96,6 +115,7 @@ export class Match {
     screen?: ScreenEffectsApi,
   ) {
     this.mode = opts.mode;
+    this.modeId = opts.mode.id;
     this.respawnDelay = opts.respawnDelay ?? 4;
     this.warmupTimer = opts.warmup ?? 2;
     this.screen = screen ?? new ScreenEffects();
@@ -110,6 +130,8 @@ export class Match {
 
     this.pool = new ProjectilePool(this.scene.dynamicRoot);
     this.vfx = new VFX(this.scene.three);
+    const audio = this.opts.audio;
+    if (audio) this.vfx.onExplosion = (c, r) => audio.explosion(c, r);
     this.world = new MatchWorld(this.scene.mapRoot, () => this.actorList, this.pool, this.vfx);
     this.navigator = new Navigator(map.waypoints);
     this.spawner = new Spawner(map.spawns);
@@ -124,7 +146,17 @@ export class Match {
         id: 0,
         team,
         weaponDef: this.opts.playerWeaponDef ?? getWeapon("m4"),
+        attachments: this.opts.playerAttachments ?? [],
+        camoColor: this.opts.playerCamo,
       });
+      if (this.opts.playerStreaks) this.streaks.setLoadout(0, this.opts.playerStreaks);
+      if (audio) {
+        this.player.events = {
+          onShot: (id) => audio.playerShot(id),
+          onReload: () => audio.playerReload(),
+          onHit: (hs, killed) => audio.hitMarker(hs, killed),
+        };
+      }
       this.scoreboard.register(0, this.opts.playerName ?? "You", team, true);
       this.actorList.push(this.player);
     }
@@ -140,6 +172,7 @@ export class Match {
         character: new ProceduralHuman({ team, accentIndex: i }),
         weaponDef: def,
         spawn: new THREE.Vector3(),
+        onShot: audio ? (wid, pos) => audio.enemyShot(wid, pos) : undefined,
       });
       this.scoreboard.register(id, `Bot ${id}`, team);
       this.scene.add(bot.character.root);
@@ -153,6 +186,46 @@ export class Match {
       this.placeActor(a, sp.position, sp.yaw);
       this.prevAlive.set(a.id, true);
     }
+
+    // Player throwables.
+    const eqCtx: EquipmentContext = {
+      world: this.world,
+      vfx: this.vfx,
+      root: this.scene.dynamicRoot,
+      screen: this.screen,
+      getPlayerPosition: (out) => this.player ? this.player.position(out) : out.set(0, 1, 0),
+      getPlayerTeam: () => this.player ? this.player.team : "ffa",
+      onSnapshot: (positions) => {
+        if (this.player) {
+          this.pings.push({ team: this.player.team, positions, expire: this.elapsed + 5 });
+        }
+      },
+    };
+    this.equipment = new EquipmentManager(eqCtx);
+  }
+
+  playerThrowTactical(): void {
+    if (!this.player?.alive || !this.camera) return;
+    const origin = this.player.eyePosition(new THREE.Vector3());
+    const dir = this.camera.getLookDirection(new THREE.Vector3());
+    this.equipment.throwTactical(
+      (this.opts.playerTactical ?? "flashbang") as TacticalId,
+      { origin, direction: dir, team: this.player.team },
+    );
+  }
+
+  playerThrowLethal(): void {
+    if (!this.player?.alive || !this.camera) return;
+    const lethal = (this.opts.playerLethal ?? "frag") as LethalId;
+    if (lethal === "c4" && this.elapsed - this.lastThrowG < 0.35) {
+      this.equipment.detonateC4();
+      this.lastThrowG = this.elapsed;
+      return;
+    }
+    const origin = this.player.eyePosition(new THREE.Vector3());
+    const dir = this.camera.getLookDirection(new THREE.Vector3());
+    this.equipment.throwLethal(lethal, { origin, direction: dir, team: this.player.team });
+    this.lastThrowG = this.elapsed;
   }
 
   private placeActor(a: Actor, pos: THREE.Vector3, yaw: number): void {
@@ -170,10 +243,15 @@ export class Match {
     return Math.max(0, this.mode.timeLimit - this.elapsed);
   }
 
+  get bounds(): { minX: number; maxX: number; minZ: number; maxZ: number } {
+    return this.map.bounds;
+  }
+
   update(dt: number): void {
     this.vfx.update(dt);
     this.world.update(dt);
     this.screen.update(dt);
+    this.equipment.update(dt);
     this.map.update?.(dt, this.elapsed);
 
     if (this.state === "warmup") {
@@ -375,6 +453,7 @@ export class Match {
   }
 
   dispose(): void {
+    this.equipment?.clear();
     for (const e of this.activeStreaks) e.streak.dispose(this.streakCtx);
     this.activeStreaks = [];
     this.player?.dispose();

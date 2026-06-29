@@ -50,6 +50,8 @@ export interface BotConfig {
   attachments?: ReadonlyArray<Attachment | string>;
   spawn: THREE.Vector3;
   yaw?: number;
+  /** Fired when this bot shoots (for positional SFX). */
+  onShot?: (weaponId: string, position: THREE.Vector3) => void;
 }
 
 export class Bot implements Actor {
@@ -88,12 +90,13 @@ export class Bot implements Actor {
     this.object3d = cfg.character.root;
     this.feet.copy(cfg.spawn);
     this.yaw = cfg.yaw ?? 0;
+    const onShot = cfg.onShot;
     this.weapon = new Weapon(cfg.weaponDef, cfg.attachments ?? [], {
       team: cfg.team,
       isPlayer: false,
       weaponId: cfg.weaponDef.id,
       id: cfg.id,
-    });
+    }, onShot ? { onShot: (w) => onShot(w.def.id, this.eyePosition(new THREE.Vector3())) } : {});
     this.brain = new BotAI(cfg.difficulty);
     this.syncTransform();
   }

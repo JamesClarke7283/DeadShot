@@ -210,7 +210,7 @@ low-poly geometry + `MeshToonMaterial` + inverted-hull outlines.
       settings, last match config) with schema versioning + migration. **Verify:** round-trip a
       class through save/load; bump schema version migrates cleanly.
 
-- [ ] **9.2** `src/ui/ClassEditor.ts` — full Create-a-Class screen:
+- [x] **9.2** `src/ui/ClassEditor.ts` — full Create-a-Class screen:
   - 10 class slots (CoD default count).
   - Primary picker (18 weapons), Secondary picker (18 weapons).
   - Attachment slots per weapon (Optic / Barrel / Magazine / Stock / Grip / Perk) with stat deltas
@@ -225,12 +225,12 @@ low-poly geometry + `MeshToonMaterial` + inverted-hull outlines.
 
 ### Phase 10 — UI / HUD / Menus
 
-- [ ] **10.1** `src/ui/MainMenu.ts` + `PreMatchMenu.ts` — main menu (Play / Create-a-Class / Options
+- [x] **10.1** `src/ui/MainMenu.ts` + `PreMatchMenu.ts` — main menu (Play / Create-a-Class / Options
       / Quit) + pre-match menu (map picker across 3 maps, mode picker TDM/FFA, bot count slider
       0–16, bot difficulty radio, class slot selection, start match). **Verify:** configure a 6v6
       Recruit TDM on DesertTown, click start, match loads.
 
-- [ ] **10.2** `src/ui/HUD.ts` + `Crosshair.ts` + `HitMarker.ts` + `DamageIndicator.ts` +
+- [x] **10.2** `src/ui/HUD.ts` + `Crosshair.ts` + `HitMarker.ts` + `DamageIndicator.ts` +
       `Killfeed.ts` + `ScoreboardUI.ts` (single task, all HUD widgets share the HUD root):
   - `HUD.ts` — health bar, ammo counter, weapon name, minimap (top-down map render with player
     arrow + visible enemies + UAV pings), scoreline, timer, killstreak progress.
@@ -245,7 +245,7 @@ low-poly geometry + `MeshToonMaterial` + inverted-hull outlines.
 
 ### Phase 11 — Audio
 
-- [ ] **11.1** `src/audio/AudioManager.ts` + `Synth.ts` + `WeaponSFX.ts` + `SpatialSFX.ts` (single
+- [x] **11.1** `src/audio/AudioManager.ts` + `Synth.ts` + `WeaponSFX.ts` + `SpatialSFX.ts` (single
       task, audio engine is one cohesive unit):
   - `AudioManager.ts` — single `AudioListener` on the camera, master / SFX / music volume buses from
     settings.
@@ -257,7 +257,7 @@ low-poly geometry + `MeshToonMaterial` + inverted-hull outlines.
   - **Verify:** fire each weapon → distinct sound; enemy bot firing behind player → sound comes from
     behind; reload plays clicks.
 
-- [ ] **11.2** `src/audio/MusicPlayer.ts` + `deno task fetch-assets` extension — download 2–3 CC0
+- [x] **11.2** `src/audio/MusicPlayer.ts` + `deno task fetch-assets` extension — download 2–3 CC0
       dramatic tracks (Incompetech / FMA) into `/public/audio/music/`; `MusicPlayer` crossfades
       between tracks, ducks during low-health, intensifies during streaks. **Verify:**
       `deno task fetch-assets` populates the folder; music loops in-match; low-health ducks volume.
