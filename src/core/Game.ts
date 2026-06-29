@@ -453,6 +453,16 @@ export class Game {
       const next = lo.find((d) => d.cost > score) ?? null;
       this.hud.setStreakProgress(score, next?.name ?? null, next?.cost ?? null);
 
+      // Right-side scorestreak tracker (a bar per loadout streak; earned shine).
+      this.hud.setStreaks(
+        lo.map((d) => ({
+          name: d.name,
+          cost: d.cost,
+          score,
+          available: m.streaks.isAvailable(p.id, d.id),
+        })),
+      );
+
       // Crosshair spread.
       const spread = (1 - p.weapon.adsFactor) * 18 + (this.input.isDown("fire") ? 10 : 0);
       this.hud.setSpread(spread);

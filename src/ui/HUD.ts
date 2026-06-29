@@ -8,7 +8,7 @@
 // it via the setters below each frame; widgets are exposed where it must wire
 // callbacks (streakMenu).
 
-import { el } from "./dom.ts";
+import { clearChildren, el } from "./dom.ts";
 import { Crosshair } from "./Crosshair.ts";
 import { HitMarker } from "./HitMarker.ts";
 import { DamageIndicator } from "./DamageIndicator.ts";
@@ -50,6 +50,11 @@ export class HUD {
 
   // Contextual interaction prompt ("Press E — …").
   private readonly prompt: HTMLElement;
+
+  // Right-side scorestreak tracker (one bar per loadout streak).
+  private readonly streakPanel: HTMLElement;
+  private streakRows: { wrap: HTMLElement; fill: HTMLElement; label: HTMLElement }[] = [];
+  private streakSig = "";
 
   // Minimap.
   private readonly canvas: HTMLCanvasElement;
@@ -294,6 +299,100 @@ export class HUD {
     });
     this.ctx = this.canvas.getContext("2d")!;
     this.drawMinimapBase(false);
+
+    // Inject the shine keyframes once (the HUD otherwise uses inline styles).
+    if (!document.getElementById("deadshot-hud-style")) {
+      const style = el("style", { parent: document.head });
+      style.id = "deadshot-hud-style";
+      style.textContent =
+        "@keyframes ds-streak-shine{0%,100%{box-shadow:0 0 4px 1px rgba(205,235,110,0.5)}50%{box-shadow:0 0 14px 4px rgba(205,235,110,0.95)}}";
+    }
+
+    // ---- Right side: scorestreak tracker (below the minimap) ----
+    this.streakPanel = el("div", {
+      parent: this.layer,
+      style: {
+        position: "absolute",
+        top: `${MINIMAP_SIZE + 28}px`,
+        right: "16px",
+        width: "176px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "6px",
+      },
+    });
+  }
+
+  /** Update the right-side scorestreak bars. earned ones shine. */
+  setStreaks(
+    entries: { name: string; cost: number; score: number; available: boolean }[],
+  ): void {
+    const sig = entries.map((e) => `${e.name}:${e.cost}`).join("|");
+    if (sig !== this.streakSig) {
+      this.streakSig = sig;
+      this.rebuildStreakRows(entries.length);
+    }
+    entries.forEach((e, i) => {
+      const row = this.streakRows[i];
+      if (!row) return;
+      const ratio = e.cost > 0 ? Math.max(0, Math.min(1, e.score / e.cost)) : 1;
+      row.label.textContent = e.available
+        ? `${e.name.toUpperCase()} ✓`
+        : `${e.name.toUpperCase()}  ${Math.min(e.score, e.cost)}/${e.cost}`;
+      row.fill.style.width = `${ratio * 100}%`;
+      row.fill.style.background = e.available
+        ? "linear-gradient(90deg,#ffe27a,#cdeb6e)"
+        : "linear-gradient(90deg,#9fd13e,#cdeb6e)";
+      row.wrap.style.animation = e.available ? "ds-streak-shine 1.2s ease-in-out infinite" : "none";
+      row.wrap.style.borderColor = e.available ? "#cdeb6e" : "#0a0c10";
+    });
+  }
+
+  private rebuildStreakRows(n: number): void {
+    clearChildren(this.streakPanel);
+    this.streakRows = [];
+    for (let i = 0; i < n; i++) {
+      const wrap = el("div", {
+        parent: this.streakPanel,
+        style: {
+          padding: "5px 7px",
+          background: "rgba(10,12,16,0.6)",
+          border: "2px solid #0a0c10",
+          borderRadius: "7px",
+        },
+      });
+      const label = el("div", {
+        parent: wrap,
+        style: {
+          font: "800 10px/1.2 'Segoe UI', system-ui, sans-serif",
+          letterSpacing: "0.04em",
+          color: "#e6edf5",
+          marginBottom: "3px",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        },
+      });
+      const track = el("div", {
+        parent: wrap,
+        style: {
+          height: "6px",
+          background: "rgba(10,12,16,0.8)",
+          borderRadius: "4px",
+          overflow: "hidden",
+        },
+      });
+      const fill = el("div", {
+        parent: track,
+        style: {
+          width: "0%",
+          height: "100%",
+          background: "linear-gradient(90deg,#9fd13e,#cdeb6e)",
+          transition: "width 0.2s ease-out",
+        },
+      });
+      this.streakRows.push({ wrap, fill, label });
+    }
   }
 
   // ---- Readouts ----

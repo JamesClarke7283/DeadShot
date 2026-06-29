@@ -427,11 +427,13 @@ export class ClassEditor {
 
       const none = el("option", { text: "None" });
       none.value = "";
+      none.title = "Nothing equipped in this slot.";
       sel.appendChild(none);
 
       for (const att of options) {
         const opt = el("option", { text: this.attachmentLabel(att.name, att.modifiers) });
         opt.value = att.id;
+        opt.title = att.description;
         sel.appendChild(opt);
       }
 
@@ -443,6 +445,7 @@ export class ClassEditor {
       sel.addEventListener("change", () => {
         this.setPrimaryAttachment(slot, sel.value);
       });
+      this.selectTitleSync(sel);
 
       this.labeledRow(container, titleCase(slot), sel);
     }
@@ -485,10 +488,12 @@ export class ClassEditor {
     this.styleSelect(optSel);
     const none = el("option", { text: "None" });
     none.value = "";
+    none.title = "Iron sights.";
     optSel.appendChild(none);
     for (const att of optics) {
       const opt = el("option", { text: att.name });
       opt.value = att.id;
+      opt.title = att.description;
       optSel.appendChild(opt);
     }
     const chosen = this.loadout.secondary.attachments.find((id) => optics.some((a) => a.id === id));
@@ -500,7 +505,19 @@ export class ClassEditor {
       this.loadout.secondary.attachments = kept;
       this.persist();
     });
+    this.selectTitleSync(optSel);
     this.labeledRow(card, "Optic", optSel);
+  }
+
+  /** Mirror the focused option's tooltip onto the <select> so hovering it shows
+   * what the current item does. Each option carries its own `title`. */
+  private selectTitleSync(sel: HTMLSelectElement): void {
+    const sync = () => {
+      const o = sel.selectedOptions[0];
+      sel.title = (o?.title || o?.textContent) ?? "";
+    };
+    sel.addEventListener("change", sync);
+    sync();
   }
 
   private idSelect(
@@ -513,10 +530,12 @@ export class ClassEditor {
     for (const id of ids) {
       const opt = el("option", { text: titleCase(id) });
       opt.value = id;
+      opt.title = titleCase(id);
       sel.appendChild(opt);
     }
     sel.value = selected;
     sel.addEventListener("change", () => onChange(sel.value));
+    this.selectTitleSync(sel);
     return sel;
   }
 
@@ -542,6 +561,7 @@ export class ClassEditor {
     for (const att of fieldUpgrades) {
       const opt = el("option", { text: att.name });
       opt.value = att.id;
+      opt.title = att.description;
       fuSel.appendChild(opt);
     }
     fuSel.value = this.loadout.fieldUpgrade;
@@ -549,6 +569,7 @@ export class ClassEditor {
       this.loadout.fieldUpgrade = fuSel.value;
       this.persist();
     });
+    this.selectTitleSync(fuSel);
     this.labeledRow(card, "Field Upgrade", fuSel);
   }
 
@@ -563,6 +584,7 @@ export class ClassEditor {
       for (const p of perks) {
         const opt = el("option", { text: p.name });
         opt.value = p.id;
+        opt.title = p.description;
         sel.appendChild(opt);
       }
       sel.value = this.loadout.perks[i] ?? (perks[0]?.id ?? "");
@@ -573,6 +595,7 @@ export class ClassEditor {
         this.loadout.perks = next;
         this.persist();
       });
+      this.selectTitleSync(sel);
       this.labeledRow(card, titleCase(tier), sel);
     });
   }
@@ -587,10 +610,12 @@ export class ClassEditor {
       this.styleSelect(sel);
       const none = el("option", { text: "None" });
       none.value = "";
+      none.title = "No scorestreak in this slot.";
       sel.appendChild(none);
       for (const s of STREAKS) {
         const opt = el("option", { text: `${s.name} (${s.cost})` });
         opt.value = s.id;
+        opt.title = `${s.name} — earned at ${s.cost} streak score.`;
         sel.appendChild(opt);
       }
       sel.value = this.loadout.streaks[i] ?? "";
@@ -601,6 +626,7 @@ export class ClassEditor {
         this.loadout.streaks = next.filter((x) => x !== "").slice(0, 3);
         this.persist();
       });
+      this.selectTitleSync(sel);
       this.labeledRow(card, `Streak ${i + 1}`, sel);
     }
   }
