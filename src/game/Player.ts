@@ -44,7 +44,13 @@ export class Player implements Actor {
 
   readonly object3d = new THREE.Object3D();
   readonly feet = new THREE.Vector3();
-  weapon!: Weapon;
+  /** Carried weapons (slot 0 = primary, slot 1 = secondary). */
+  weapons: Weapon[] = [];
+  private currentSlot = 0;
+  /** The currently-equipped weapon (mutating its fields is fine). */
+  get weapon(): Weapon {
+    return this.weapons[this.currentSlot];
+  }
   lastDamage?: DamageInfo;
   private deathTimer = 0;
 
@@ -87,8 +93,9 @@ export class Player implements Actor {
     this.setWeapon(opts.weaponDef);
   }
 
-  setWeapon(def: WeaponDef): void {
-    this.weapon = new Weapon(def, this.attachments, {
+  /** Construct a Weapon wired to this player's viewmodel + audio/hitmarker hooks. */
+  private buildWeapon(def: WeaponDef, attachments: ReadonlyArray<Attachment | string>): Weapon {
+    return new Weapon(def, attachments, {
       team: this.team,
       isPlayer: true,
       weaponId: def.id,
@@ -104,6 +111,46 @@ export class Player implements Actor {
       },
       onHit: (headshot, killed) => this.events?.onHit?.(headshot, killed),
     });
+  }
+
+  /** Single-weapon loadout (kept for callers that only have a primary). */
+  setWeapon(def: WeaponDef): void {
+    this.weapons = [this.buildWeapon(def, this.attachments)];
+    this.currentSlot = 0;
+    this.viewmodel.setWeapon(def, this.camoColor);
+  }
+
+  /** Two-weapon loadout: primary in slot 0, secondary in slot 1. */
+  setLoadout(
+    primaryDef: WeaponDef,
+    secondaryDef: WeaponDef,
+    primaryAttachments: ReadonlyArray<Attachment | string> = this.attachments,
+    secondaryAttachments: ReadonlyArray<Attachment | string> = [],
+  ): void {
+    this.weapons = [
+      this.buildWeapon(primaryDef, primaryAttachments),
+      this.buildWeapon(secondaryDef, secondaryAttachments),
+    ];
+    this.currentSlot = 0;
+    this.viewmodel.setWeapon(primaryDef, this.camoColor);
+  }
+
+  /** Cycle carried weapons (dir +1 / -1) with a quick swap-in delay. */
+  switchWeapon(dir: number): void {
+    const n = this.weapons.length;
+    if (n < 2) return;
+    this.currentSlot = (((this.currentSlot + dir) % n) + n) % n;
+    this.weapon.swapIn();
+    this.viewmodel.setWeapon(this.weapon.def, this.camoColor);
+  }
+
+  /** Pick up a dropped weapon into the current slot, keeping its leftover ammo. */
+  equipDropped(def: WeaponDef, magazine: number, reserve: number): void {
+    const w = this.buildWeapon(def, []);
+    w.magazine = magazine;
+    w.reserve = reserve;
+    this.weapons[this.currentSlot] = w;
+    w.swapIn();
     this.viewmodel.setWeapon(def, this.camoColor);
   }
 
@@ -163,6 +210,10 @@ export class Player implements Actor {
       this.health = Math.min(this.maxHealth, this.health + REGEN_RATE * dt);
     }
 
+    // Mouse wheel switches between carried weapons.
+    const wheel = this.input.consumeWheel();
+    if (wheel !== 0) this.switchWeapon(wheel > 0 ? 1 : -1);
+
     // Aim from camera.
     this.camera.perspective.getWorldPosition(this.origin);
     this.camera.getLookDirection(this.dir);
@@ -184,7 +235,7 @@ export class Player implements Actor {
     if (fb !== 0 || lr !== 0) {
       this.camera.getForward(this.fwd);
       const fx = this.fwd.x, fz = this.fwd.z;
-      const rx = fz, rz = -fx; // right = forward x up
+      const rx = -fz, rz = fx; // right = forward × up (D / → strafes right)
       this.feet.x += (fx * fb + rx * lr) * speed * dt;
       this.feet.z += (fz * fb + rz * lr) * speed * dt;
     }

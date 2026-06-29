@@ -47,6 +47,17 @@ export interface KillEvent {
   time: number;
 }
 
+/** A world object the player can collect (Press E) and bots may auto-grab. */
+interface Interactable {
+  mesh: THREE.Object3D;
+  pos: THREE.Vector3;
+  radius: number; // player E range (world units)
+  botRadius: number; // bots auto-collect within this (0 = players only)
+  label: string; // HUD prompt text
+  expire: number; // match-elapsed seconds after which it disappears
+  use(collectorId: number): void;
+}
+
 export interface MatchAudio {
   playerShot(weaponId: string): void;
   playerReload(): void;
@@ -62,6 +73,8 @@ export interface MatchOptions {
   difficulty: Difficulty;
   hasPlayer: boolean;
   playerWeaponDef?: WeaponDef;
+  playerSecondaryDef?: WeaponDef;
+  playerSecondaryAttachments?: string[];
   playerName?: string;
   playerAttachments?: string[];
   playerCamo?: number;
@@ -99,6 +112,9 @@ export class Match {
   private lastThrowG = -1;
   private playerHasScavenger = false;
   private ammoPickups: { mesh: THREE.Object3D; pos: THREE.Vector3; expire: number }[] = [];
+  private interactables: Interactable[] = [];
+  /** Current "Press E — …" prompt for the local player, or null. Read by Game. */
+  interactPrompt: string | null = null;
 
   private actorList: Actor[] = [];
   private map!: MapBuild;
@@ -155,6 +171,14 @@ export class Match {
         attachments: this.opts.playerAttachments ?? [],
         camoColor: this.opts.playerCamo,
       });
+      if (this.opts.playerSecondaryDef) {
+        this.player.setLoadout(
+          this.opts.playerWeaponDef ?? getWeapon("m4"),
+          this.opts.playerSecondaryDef,
+          this.opts.playerAttachments ?? [],
+          this.opts.playerSecondaryAttachments ?? [],
+        );
+      }
       if (this.opts.playerStreaks) this.streaks.setLoadout(0, this.opts.playerStreaks);
       this.playerHasScavenger = !!this.opts.playerPerks?.includes("scavenger");
       if (audio) {
@@ -316,6 +340,7 @@ export class Match {
     }
 
     this.updateAmmoPickups(dt);
+    this.updateInteractables(dt);
     this.updateStreaks(dt);
 
     // Win check (a nuke streak may have already ended the match above).
@@ -368,6 +393,12 @@ export class Match {
     });
     if (this.killfeed.length > 8) this.killfeed.shift();
 
+    // Drop the victim's weapon (with its leftover ammo) for anyone to pick up.
+    const vw = (victim as Bot | Player).weapon;
+    if (vw) {
+      this.addWeaponDrop(vw.def, vw.magazine, vw.reserve, victim.position(new THREE.Vector3()));
+    }
+
     // Scavenger perk: enemies drop ammo the player can collect.
     if (
       this.playerHasScavenger && this.player &&
@@ -418,6 +449,141 @@ export class Match {
     }
   }
 
+  // ---- Interactables (weapon drops + care packages) ----
+
+  private teamOf(id: number): TeamId {
+    const a = this.actorList.find((x) => x.id === id);
+    return a ? a.team : "ffa";
+  }
+
+  /** Drop a weapon on the ground that the player can swap to with E. */
+  private addWeaponDrop(
+    def: WeaponDef,
+    magazine: number,
+    reserve: number,
+    pos: THREE.Vector3,
+  ): void {
+    const group = new THREE.Group();
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(0.72, 0.13, 0.13),
+      createToonMaterial({ color: 0x2b2f36 }),
+    );
+    addOutline(body, { thickness: 0.02 });
+    group.add(body);
+    const mag = new THREE.Mesh(
+      new THREE.BoxGeometry(0.12, 0.22, 0.1),
+      createToonMaterial({ color: 0x14171c }),
+    );
+    mag.position.set(-0.04, -0.16, 0);
+    group.add(mag);
+    group.position.set(pos.x, this.map.groundAt(pos.x, pos.z) + 0.5, pos.z);
+    group.rotation.z = 0.25;
+    this.scene.dynamicRoot.add(group);
+    this.interactables.push({
+      mesh: group,
+      pos: group.position.clone(),
+      radius: 1.9,
+      botRadius: 0,
+      label: `Press E — ${def.name} (${magazine}/${reserve})`,
+      expire: this.elapsed + 30,
+      use: (collectorId) => {
+        if (this.player && collectorId === this.player.id) {
+          this.player.equipDropped(def, magazine, reserve);
+        }
+      },
+    });
+  }
+
+  /** Register a landed care package: persists, collectible by E (player) or bots. */
+  private armCarePackage(pos: THREE.Vector3): void {
+    const group = new THREE.Group();
+    const crate = new THREE.Mesh(
+      new THREE.BoxGeometry(1.2, 1.2, 1.2),
+      createToonMaterial({ color: 0xcf9233, emissive: 0x3a2400 }),
+    );
+    addOutline(crate, { thickness: 0.045 });
+    group.add(crate);
+    const beam = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.18, 0.18, 9, 8, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0xcdeb6e, transparent: true, opacity: 0.22 }),
+    );
+    beam.position.y = 4.6;
+    group.add(beam);
+    group.position.set(pos.x, this.map.groundAt(pos.x, pos.z) + 0.6, pos.z);
+    this.scene.dynamicRoot.add(group);
+    this.interactables.push({
+      mesh: group,
+      pos: group.position.clone(),
+      radius: 2.5,
+      botRadius: 2.5,
+      label: "Press E — Care Package",
+      expire: this.elapsed + 60,
+      use: (collectorId) => {
+        this.grantRandomStreak({ id: collectorId, team: this.teamOf(collectorId) });
+      },
+    });
+  }
+
+  private updateInteractables(dt: number): void {
+    this.interactPrompt = null;
+    if (this.interactables.length === 0) return;
+    const remove = new Set<Interactable>();
+
+    for (const it of this.interactables) {
+      it.mesh.rotation.y += dt * 1.5;
+      if (this.elapsed >= it.expire) {
+        remove.add(it);
+        continue;
+      }
+      // Bots auto-collect (care packages only; weapon drops use botRadius 0).
+      if (it.botRadius > 0) {
+        for (const b of this.bots) {
+          if (!b.alive) continue;
+          const dx = b.feet.x - it.pos.x;
+          const dz = b.feet.z - it.pos.z;
+          if (dx * dx + dz * dz < it.botRadius * it.botRadius) {
+            it.use(b.id);
+            remove.add(it);
+            break;
+          }
+        }
+      }
+    }
+
+    // Nearest interactable in range of the local player -> prompt + E to use.
+    const p = this.player;
+    if (p && p.alive) {
+      let nearest: Interactable | null = null;
+      let nd = Infinity;
+      for (const it of this.interactables) {
+        if (remove.has(it)) continue;
+        const dx = p.feet.x - it.pos.x;
+        const dz = p.feet.z - it.pos.z;
+        const d = dx * dx + dz * dz;
+        if (d < it.radius * it.radius && d < nd) {
+          nd = d;
+          nearest = it;
+        }
+      }
+      if (nearest) {
+        this.interactPrompt = nearest.label;
+        if (this.input?.wasPressed("interact")) {
+          nearest.use(p.id);
+          remove.add(nearest);
+          this.interactPrompt = null;
+        }
+      }
+    }
+
+    if (remove.size) {
+      for (const it of remove) {
+        this.scene.dynamicRoot.remove(it.mesh);
+        disposeObject(it.mesh);
+      }
+      this.interactables = this.interactables.filter((it) => !remove.has(it));
+    }
+  }
+
   formatWinner(): string {
     if (this.winner === undefined) return "Draw";
     if (typeof this.winner === "string") return `${this.winner.toUpperCase()} team wins`;
@@ -442,6 +608,7 @@ export class Match {
         this.pings.push({ team, positions, expire: this.elapsed + dur }),
       setCounterUAV: (against, dur) => this.counterUAV.set(against, this.elapsed + dur),
       spawnCarePackage: (_pos, owner) => this.activateStreak(owner, "care_package"),
+      armCarePackage: (pos) => this.armCarePackage(pos),
       grantRandomStreak: (owner) => this.grantRandomStreak(owner),
       endMatch: (winner) => this.endByStreak(winner),
       localPlayerId: this.player ? this.player.id : null,
@@ -521,6 +688,11 @@ export class Match {
   dispose(): void {
     for (const pk of this.ammoPickups) this.scene.dynamicRoot.remove(pk.mesh);
     this.ammoPickups = [];
+    for (const it of this.interactables) {
+      this.scene.dynamicRoot.remove(it.mesh);
+      disposeObject(it.mesh);
+    }
+    this.interactables = [];
     this.equipment?.clear();
     for (const e of this.activeStreaks) e.streak.dispose(this.streakCtx);
     this.activeStreaks = [];
@@ -535,4 +707,15 @@ export class Match {
     this.vfx?.clear();
     this.screen.clear();
   }
+}
+
+/** Recursively dispose geometries/materials under an object (for pickups). */
+function disposeObject(obj: THREE.Object3D): void {
+  obj.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (m.geometry) m.geometry.dispose();
+    const mat = (m as THREE.Mesh).material;
+    if (Array.isArray(mat)) mat.forEach((x) => x.dispose());
+    else if (mat) (mat as THREE.Material).dispose();
+  });
 }

@@ -42,5 +42,6 @@ the browser only ever loads plain JS and the game runs offline once dependencies
 
 ## Controls (default)
 
-WASD move · mouse look · LMB fire · RMB ADS · R reload · G lethal (double-tap for C4) · Q tactical ·
-Z streak wheel · Tab scoreboard · Esc pause · `` ` `` dev console.
+WASD move · mouse look · LMB fire · RMB ADS · R reload · **mouse-wheel swap weapon** · **E pick up /
+collect** (dropped weapons, care packages) · G lethal (double-tap for C4) · Q tactical · Z streak
+wheel (hold Z + 1–3 to call one in) · Tab scoreboard · Esc pause · `` ` `` dev console.

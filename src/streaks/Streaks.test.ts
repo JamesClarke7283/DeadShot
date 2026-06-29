@@ -90,6 +90,7 @@ interface MockCtx extends StreakContext {
   granted: StreakOwner[];
   matchWinner: TeamId | number | null;
   fxExplosions: number;
+  armed: THREE.Vector3[];
 }
 
 function makeCtx(owner: StreakOwner, actors: MockActor[]): MockCtx {
@@ -112,6 +113,7 @@ function makeCtx(owner: StreakOwner, actors: MockActor[]): MockCtx {
     granted: [],
     matchWinner: null,
     fxExplosions: 0,
+    armed: [],
     localPlayerId: null,
     allActors: () => actors,
     enemiesOf(team: TeamId) {
@@ -125,6 +127,9 @@ function makeCtx(owner: StreakOwner, actors: MockActor[]): MockCtx {
       ctx.counterUAV = { team, dur };
     },
     spawnCarePackage() {},
+    armCarePackage(pos) {
+      ctx.armed.push(pos.clone());
+    },
     grantRandomStreak(o) {
       ctx.granted.push(o);
       return "uav";
@@ -251,27 +256,23 @@ Deno.test("RCXD drives to an enemy and detonates with splash", () => {
 
 // ---- CarePackage ----
 
-Deno.test("CarePackage grants a random streak to a nearby actor after it lands", () => {
+Deno.test("CarePackage flies a heli in, drops a crate, and arms it on landing", () => {
   const owner: StreakOwner = { id: 1, team: "blue" };
   const me = new MockActor(1, "blue", true, new THREE.Vector3(0, 0, 0));
   const ctx = makeCtx(owner, [me]);
   const pkg = new CarePackage();
-  // Let it fall and be captured by the owner standing under it.
-  step(pkg, ctx, 0.1, 100);
-  assertEquals(ctx.granted.length, 1, "one grant issued");
-  assertEquals(ctx.granted[0].id, 1);
-  assertEquals(pkg.active, false);
+  // Fly in, release over the owner, crate falls + lands, heli leaves.
+  step(pkg, ctx, 0.1, 200);
+  assertEquals(ctx.armed.length, 1, "one crate armed on landing");
+  assertEquals(pkg.active, false, "streak ends after the heli leaves the map");
 });
 
-Deno.test("CarePackage times out if no live actor captures it", () => {
-  const owner: StreakOwner = { id: 1, team: "blue" };
-  const me = new MockActor(1, "blue", true, new THREE.Vector3(0, 0, 0));
-  // The only actor is dead, so it cannot capture the package.
-  me.alive = false;
-  const ctx = makeCtx(owner, [me]);
+Deno.test("CarePackage drops at map center when the owner is absent", () => {
+  const owner: StreakOwner = { id: 99, team: "blue" }; // no matching actor
+  const ctx = makeCtx(owner, []);
   const pkg = new CarePackage();
-  step(pkg, ctx, 0.5, 70); // > 30s
-  assertEquals(ctx.granted.length, 0);
+  step(pkg, ctx, 0.1, 200);
+  assertEquals(ctx.armed.length, 1);
   assertEquals(pkg.active, false);
 });
 

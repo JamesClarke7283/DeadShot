@@ -48,6 +48,9 @@ export class HUD {
   private readonly streakLabel: HTMLElement;
   private readonly streakFill: HTMLElement;
 
+  // Contextual interaction prompt ("Press E — …").
+  private readonly prompt: HTMLElement;
+
   // Minimap.
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
@@ -250,6 +253,29 @@ export class HUD {
       },
     });
 
+    // ---- Center: interaction prompt ----
+    this.prompt = el("div", {
+      parent: this.layer,
+      text: "",
+      style: {
+        position: "absolute",
+        left: "50%",
+        top: "58%",
+        transform: "translateX(-50%)",
+        display: "none",
+        padding: "8px 16px",
+        background: "rgba(10,12,16,0.78)",
+        border: "2px solid #cdeb6e",
+        borderRadius: "10px",
+        boxShadow: "3px 3px 0 #0a0c10",
+        font: "800 15px/1 'Segoe UI', system-ui, sans-serif",
+        color: "#e6edf5",
+        letterSpacing: "0.04em",
+        whiteSpace: "nowrap",
+        pointerEvents: "none",
+      },
+    });
+
     // ---- Top-right: minimap ----
     this.canvas = el("canvas", {
       parent: this.layer,
@@ -313,6 +339,16 @@ export class HUD {
     const ratio = nextCost > 0 ? Math.max(0, Math.min(1, score / nextCost)) : 0;
     this.streakLabel.textContent = `NEXT: ${nextName.toUpperCase()} (${score}/${nextCost})`;
     this.streakFill.style.width = `${ratio * 100}%`;
+  }
+
+  /** Show/hide the centered interaction prompt. Pass null to hide. */
+  setPrompt(text: string | null): void {
+    if (text) {
+      this.prompt.textContent = text;
+      this.prompt.style.display = "block";
+    } else {
+      this.prompt.style.display = "none";
+    }
   }
 
   // ---- Widget passthroughs ----
@@ -466,6 +502,7 @@ export class HUD {
   }
 
   hide(): void {
+    this.setPrompt(null);
     this.layer.style.display = "none";
   }
 

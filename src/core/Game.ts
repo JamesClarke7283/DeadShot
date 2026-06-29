@@ -306,6 +306,8 @@ export class Game {
       difficulty: cfg.difficulty,
       hasPlayer: true,
       playerWeaponDef: primary,
+      playerSecondaryDef: getWeapon(loadout.secondary.weaponId),
+      playerSecondaryAttachments: loadout.secondary.attachments,
       playerName: "You",
       playerAttachments: loadout.primary.attachments,
       playerCamo: camo,
@@ -356,6 +358,7 @@ export class Game {
       this.hud.setWeaponName(p.weapon.def.name);
       this.hud.setScoreline(blue, red, m.modeId);
       this.hud.setTimer(m.timeLeft);
+      this.hud.setPrompt(m.interactPrompt);
 
       // Streak progress.
       const score = m.streaks.scoreOf(p.id);

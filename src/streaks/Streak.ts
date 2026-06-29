@@ -34,6 +34,8 @@ export interface StreakContext {
   setCounterUAV(againstTeam: TeamId, durationSec: number): void;
   /** Drop a capturable care package. */
   spawnCarePackage(position: THREE.Vector3, owner: StreakOwner): void;
+  /** Register a landed care-package crate (persists; collect with E / proximity). */
+  armCarePackage(position: THREE.Vector3): void;
   /** Grant a random streak to an owner (care package payload); returns its id. */
   grantRandomStreak(owner: StreakOwner): string;
   /** End the match immediately (Nuke). */
