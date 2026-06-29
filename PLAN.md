@@ -264,11 +264,11 @@ low-poly geometry + `MeshToonMaterial` + inverted-hull outlines.
 
 ### Phase 12 — Desktop Client
 
-- [ ] **12.1** `src/server/server.ts` — Deno HTTP server (`Deno.serve`) on configurable port serving
+- [x] **12.1** `src/server/server.ts` — Deno HTTP server (`Deno.serve`) on configurable port serving
       `/public` with correct MIME types + import-map-aware HTML. **Verify:** `deno task run-browser`
       starts server, opens `http://localhost:<port>` in default browser, game boots.
 
-- [ ] **12.2** `src/server/desktop.ts` — `webview_deno` launcher: starts the HTTP server in a
+- [x] **12.2** `src/server/desktop.ts` — `webview_deno` launcher: starts the HTTP server in a
       worker, opens a native OS window pointing at the same URL, sets window title `DeadShot`,
       1280×720 default, fullscreen toggle via F11. Wire `deno task run-client`. **Verify:**
       `deno task run-client` opens a native desktop window running the game identically to the
@@ -285,7 +285,7 @@ low-poly geometry + `MeshToonMaterial` + inverted-hull outlines.
 - [MANUAL] **13.3** Desktop client QA on Linux — confirm `webview_deno` window opens, pointer lock
   works inside it, audio plays.
 
-- [ ] **13.4** `docs/bot-ai.md` + `docs/architecture.md` — write developer docs covering AI
+- [x] **13.4** `docs/bot-ai.md` + `docs/architecture.md` — write developer docs covering AI
       internals, ECS-ish layout, and the run-browser vs run-client split.
 
 ### Phase 14 — Stretch Goals (deferred; listed for visibility, not in critical path)
