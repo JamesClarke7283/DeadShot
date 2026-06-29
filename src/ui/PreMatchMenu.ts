@@ -63,7 +63,8 @@ export class PreMatchMenu {
       style: {
         position: "absolute",
         inset: "0",
-        display: "flex",
+        // Hidden until show(); a screen that was never entered must not linger.
+        display: "none",
         alignItems: "center",
         justifyContent: "center",
         background: "radial-gradient(120% 120% at 50% 10%, #1b2330 0%, #0a0c10 70%, #05070a 100%)",
@@ -71,6 +72,8 @@ export class PreMatchMenu {
         color: "#e6edf5",
         userSelect: "none",
         overflow: "auto",
+        // Capture clicks so the menu is modal (no firing through to the canvas).
+        pointerEvents: "auto",
       },
     });
 

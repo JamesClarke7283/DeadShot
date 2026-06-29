@@ -31,12 +31,15 @@ export class MainMenu {
       style: {
         position: "absolute",
         inset: "0",
-        display: "flex",
+        // Hidden until show() (start() enters MainMenu, which shows it).
+        display: "none",
         alignItems: "center",
         justifyContent: "center",
         background: "radial-gradient(120% 120% at 50% 10%, #1b2330 0%, #0a0c10 70%, #05070a 100%)",
         fontFamily: "'Segoe UI', system-ui, sans-serif",
         userSelect: "none",
+        // Capture clicks so the menu is modal.
+        pointerEvents: "auto",
       },
     });
 

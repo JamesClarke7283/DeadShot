@@ -58,3 +58,17 @@ Check these before web searching (load with the Read tool as needed):
 - PointerLockControls (r180): `controls.object` is typed `Object3D`; expose the `PerspectiveCamera`
   directly instead of casting. `moveForward/moveRight` move parallel to the XZ plane (keeps eye
   height). `pointerSpeed` = sensitivity.
+
+## Project Operations (gotchas learned)
+
+- **UI screens MUST start hidden.** Every `src/ui` overlay (MainMenu, PreMatchMenu, …) is created
+  once and toggled via show()/hide(); the Game only show()s the active state's screen and hide()s on
+  `exit`. A screen created with `display:flex` that is never _entered_ will linger on top forever
+  (this caused the PreMatch lobby to cover a running match — "won't go into the map"). Overlays
+  start `display:none` and set `pointerEvents:auto` so they're modal (not click-through to the
+  canvas). `Game.startMatch` also defensively hides all menus.
+- **Headless verification fallback:** when the t3code preview tab wedges (a runaway rAF match pegs
+  it), drive a real headless Chromium with `jsr:@astral/astral` instead:
+  `launch({headless:true, args:["--no-sandbox","--use-gl=swiftshader"]})`, `page.evaluate(...)` to
+  read `window.deadshot` / click buttons, `page.screenshot()` to capture. Independent of the MCP
+  preview.

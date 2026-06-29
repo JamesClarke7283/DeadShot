@@ -222,18 +222,25 @@ export class Game {
     this.registerState(GameState.MainMenu, {
       enter: () => {
         this.camera.unlock();
+        this.hud.hide();
         this.mainMenu.show();
       },
       exit: () => this.mainMenu.hide(),
     });
 
     this.registerState(GameState.ClassEditor, {
-      enter: () => this.classEditor.show(),
+      enter: () => {
+        this.hud.hide();
+        this.classEditor.show();
+      },
       exit: () => this.classEditor.hide(),
     });
 
     this.registerState(GameState.PreMatch, {
-      enter: () => this.preMatch.show(),
+      enter: () => {
+        this.hud.hide();
+        this.preMatch.show();
+      },
       exit: () => this.preMatch.hide(),
     });
 
@@ -267,6 +274,12 @@ export class Game {
       this.setState(GameState.MainMenu);
       return;
     }
+    // Defensively clear every menu/overlay so nothing covers the live map.
+    this.mainMenu.hide();
+    this.preMatch.hide();
+    this.classEditor.hide();
+    this.removePostMatch();
+    this.removePause();
     const loadout = this.storage.getClass(cfg.classSlot);
     const primary = getWeapon(loadout.primary.weaponId);
     const camo = getCamo(loadout.camo).color;
