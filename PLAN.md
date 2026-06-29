@@ -102,7 +102,7 @@ low-poly geometry + `MeshToonMaterial` + inverted-hull outlines.
       upgrade, Trophy field upgrade, etc.). Includes camo color palette. **Verify:** unit test that
       a fully-kitted class produces deterministic final stats.
 
-- [ ] **3.3** `src/weapons/Weapon.ts` + `Recoil.ts` + `WeaponViewmodel.ts` — runtime weapon
+- [x] **3.3** `src/weapons/Weapon.ts` + `Recoil.ts` + `WeaponViewmodel.ts` — runtime weapon
       instance:
   - `Weapon.ts` — state machine (`Ready / Firing / Reloading / Swapping / Empty`), applies
     attachments to base stats, raycast hitscan for bullets, projectile spawn for RPG.
@@ -112,7 +112,7 @@ low-poly geometry + `MeshToonMaterial` + inverted-hull outlines.
   - **Verify:** equip M4, hold LMB → auto-fire raycast leaves bullet holes on test wall; press R →
     reload anim plays; equip RPG → rocket projectile travels and explodes on impact.
 
-- [ ] **3.4** `src/weapons/Projectile.ts` + `Rocket.ts` — projectile pool with gravity + collision;
+- [x] **3.4** `src/weapons/Projectile.ts` + `Rocket.ts` — projectile pool with gravity + collision;
       `Rocket.ts` adds thrust + splash damage radius + explosion VFX. **Verify:** RPG rocket
       destroys test cubes within splash radius.
 

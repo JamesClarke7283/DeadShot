@@ -9,17 +9,13 @@
 // cube + capsule with outlines that you can walk around (pointer lock + WASD)
 // to verify the engine end-to-end.
 
-import * as THREE from "../three.ts";
 import { Renderer } from "./Renderer.ts";
 import { Scene } from "./Scene.ts";
 import { Camera } from "./Camera.ts";
 import { Input } from "./Input.ts";
 import { Clock } from "./Clock.ts";
 import { AssetLoader } from "./AssetLoader.ts";
-import { createToonMaterial } from "../render/ToonMaterial.ts";
-import { outlineHierarchy } from "../render/OutlinePass.ts";
-import { createCharacter } from "../characters/CharacterFactory.ts";
-import type { Character } from "../characters/Character.ts";
+import { Sandbox } from "./Sandbox.ts";
 
 export enum GameState {
   Boot = "Boot",
@@ -66,6 +62,10 @@ export class Game {
     this.scene = new Scene();
     this.input = new Input(canvas);
     this.assets = new AssetLoader((frac, url) => this.onLoadProgress(frac, url));
+
+    // The camera is added to the scene graph so camera-parented objects (the
+    // first-person weapon viewmodel) are traversed and rendered.
+    this.scene.three.add(this.camera.perspective);
 
     this.renderer.setResizeCallback((_w, _h) => this.camera.resize(this.renderer.aspect));
 
@@ -155,95 +155,20 @@ export class Game {
     document.getElementById("loading")?.classList.add("hidden");
   }
 
-  // ---- Built-in Phase 1/2 sandbox (replaced by the match in later phases) ----
-  private sandboxChars: Character[] = [];
+  // ---- Built-in Phase 1-3 sandbox (replaced by the match in later phases) ----
+  private sandbox: Sandbox | null = null;
 
   private installSandboxState(): void {
-    const move = new THREE.Vector3();
-    const forward = new THREE.Vector3();
-    const right = new THREE.Vector3();
-
     this.registerState(GameState.Playing, {
       enter: () => {
-        this.scene.setEnvironment({
-          background: 0x9fd3ff,
-          fogColor: 0xbfe3ff,
-          fogNear: 60,
-          fogFar: 400,
-        });
-        this.buildSandbox();
-        this.spawnSandboxCharacters();
-        this.camera.setPosition(0, 1.6, 8);
+        if (!this.sandbox) this.sandbox = new Sandbox(this.scene, this.camera, this.input);
+        this.sandbox.build(this.assets);
       },
-      update: (dt) => {
-        for (const c of this.sandboxChars) c.update(dt);
-        if (!this.camera.isLocked) return;
-        const speed = (this.input.isDown("sprint") ? 9 : 5.5) * dt;
-        const fb = this.input.axis("back", "forward");
-        const lr = this.input.axis("left", "right");
-        if (fb !== 0 || lr !== 0) {
-          this.camera.getForward(forward);
-          this.camera.getRight(right);
-          move.set(0, 0, 0)
-            .addScaledVector(forward, fb)
-            .addScaledVector(right, lr)
-            .normalize()
-            .multiplyScalar(speed);
-          this.camera.perspective.position.add(move);
-          this.camera.perspective.position.y = 1.6; // stay grounded in sandbox
-        }
+      update: (dt) => this.sandbox?.update(dt),
+      exit: () => {
+        this.sandbox?.dispose();
+        this.sandbox = null;
       },
     });
-  }
-
-  private async spawnSandboxCharacters(): Promise<void> {
-    for (const c of this.sandboxChars) {
-      this.scene.dynamicRoot.remove(c.root);
-      c.dispose();
-    }
-    this.sandboxChars = [];
-    const blue = await createCharacter(this.assets, { team: "blue" });
-    blue.root.position.set(-1.6, 0, 4);
-    blue.play("idle");
-    this.scene.add(blue.root);
-    this.sandboxChars.push(blue);
-
-    const red = await createCharacter(this.assets, { team: "red" });
-    red.root.position.set(1.6, 0, 4);
-    red.play("run");
-    this.scene.add(red.root);
-    this.sandboxChars.push(red);
-  }
-
-  private buildSandbox(): void {
-    this.scene.clearMap();
-
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(120, 120),
-      createToonMaterial({ color: 0x6fae5a }),
-    );
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    this.scene.addToMap(ground);
-
-    const cube = new THREE.Mesh(
-      new THREE.BoxGeometry(2, 2, 2),
-      createToonMaterial({ color: 0xff6b35 }),
-    );
-    cube.position.set(-2.5, 1, 0);
-    cube.castShadow = true;
-    this.scene.addToMap(cube);
-
-    const capsule = new THREE.Mesh(
-      new THREE.CapsuleGeometry(0.8, 1.6, 8, 16),
-      createToonMaterial({ color: 0x3a86ff }),
-    );
-    capsule.position.set(2.5, 1.6, 0);
-    capsule.castShadow = true;
-    this.scene.addToMap(capsule);
-
-    // Cartoon black outlines on the demo props.
-    outlineHierarchy(cube, { thickness: 0.04 });
-    outlineHierarchy(capsule, { thickness: 0.04 });
   }
 }

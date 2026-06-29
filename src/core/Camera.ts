@@ -69,6 +69,20 @@ export class Camera {
     this.controls.pointerSpeed = s;
   }
 
+  /**
+   * Apply a recoil/aim kick in radians. Composes with PointerLockControls, which
+   * reads the camera quaternion afresh on each mouse move — so the player can
+   * fight the climb. Positive pitch tilts the view up.
+   */
+  applyRecoil(pitch: number, yaw: number): void {
+    const e = new THREE.Euler().setFromQuaternion(this.perspective.quaternion, "YXZ");
+    e.x += pitch;
+    e.y += yaw;
+    const max = Math.PI / 2 - 0.01;
+    e.x = Math.max(-max, Math.min(max, e.x));
+    this.perspective.quaternion.setFromEuler(e);
+  }
+
   setFov(fov: number): void {
     this.perspective.fov = fov;
     this.perspective.updateProjectionMatrix();
