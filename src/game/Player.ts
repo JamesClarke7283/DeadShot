@@ -46,6 +46,7 @@ export class Player implements Actor {
   readonly feet = new THREE.Vector3();
   /** Carried weapons (slot 0 = primary, slot 1 = secondary). */
   weapons: Weapon[] = [];
+  private slotAttachments: ReadonlyArray<Attachment | string>[] = [];
   private currentSlot = 0;
   /** The currently-equipped weapon (mutating its fields is fine). */
   get weapon(): Weapon {
@@ -116,8 +117,9 @@ export class Player implements Actor {
   /** Single-weapon loadout (kept for callers that only have a primary). */
   setWeapon(def: WeaponDef): void {
     this.weapons = [this.buildWeapon(def, this.attachments)];
+    this.slotAttachments = [this.attachments];
     this.currentSlot = 0;
-    this.viewmodel.setWeapon(def, this.camoColor);
+    this.viewmodel.setWeapon(def, this.camoColor, this.attachments);
   }
 
   /** Two-weapon loadout: primary in slot 0, secondary in slot 1. */
@@ -131,8 +133,9 @@ export class Player implements Actor {
       this.buildWeapon(primaryDef, primaryAttachments),
       this.buildWeapon(secondaryDef, secondaryAttachments),
     ];
+    this.slotAttachments = [primaryAttachments, secondaryAttachments];
     this.currentSlot = 0;
-    this.viewmodel.setWeapon(primaryDef, this.camoColor);
+    this.viewmodel.setWeapon(primaryDef, this.camoColor, primaryAttachments);
   }
 
   /** Cycle carried weapons (dir +1 / -1) with a quick swap-in delay. */
@@ -141,7 +144,11 @@ export class Player implements Actor {
     if (n < 2) return;
     this.currentSlot = (((this.currentSlot + dir) % n) + n) % n;
     this.weapon.swapIn();
-    this.viewmodel.setWeapon(this.weapon.def, this.camoColor);
+    this.viewmodel.setWeapon(
+      this.weapon.def,
+      this.camoColor,
+      this.slotAttachments[this.currentSlot] ?? [],
+    );
   }
 
   /** Pick up a dropped weapon into the current slot, keeping its leftover ammo. */
@@ -150,8 +157,9 @@ export class Player implements Actor {
     w.magazine = magazine;
     w.reserve = reserve;
     this.weapons[this.currentSlot] = w;
+    this.slotAttachments[this.currentSlot] = [];
     w.swapIn();
-    this.viewmodel.setWeapon(def, this.camoColor);
+    this.viewmodel.setWeapon(def, this.camoColor, []);
   }
 
   // ---- Actor / DamageTarget ----

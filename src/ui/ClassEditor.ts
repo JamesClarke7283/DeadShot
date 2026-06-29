@@ -465,6 +465,7 @@ export class ClassEditor {
     this.loadout.primary.attachments = kept;
     this.persist();
     this.refreshStats();
+    this.syncPreviewWeapon();
   }
 
   private buildSecondarySection(parent: HTMLElement): void {
@@ -723,7 +724,11 @@ export class ClassEditor {
   private syncPreviewWeapon(): void {
     if (!this.viewmodel) return;
     const def = getWeapon(this.loadout.primary.weaponId);
-    this.viewmodel.setWeapon(def, getCamo(this.loadout.camo).color);
+    this.viewmodel.setWeapon(
+      def,
+      getCamo(this.loadout.camo).color,
+      this.loadout.primary.attachments,
+    );
   }
 
   private syncPreviewCamo(): void {

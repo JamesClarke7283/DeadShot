@@ -41,6 +41,7 @@ export class PreMatchMenu {
   // Elements whose appearance reflects state.
   private mapCards: HTMLElement[] = [];
   private modeButtons: HTMLButtonElement[] = [];
+  private classSelect?: HTMLSelectElement;
 
   constructor(root: HTMLElement, storage: Storage, opts: PreMatchMenuOptions) {
     this.root = root;
@@ -307,6 +308,18 @@ export class PreMatchMenu {
         width: "320px",
       },
     });
+    this.classSelect = select;
+    select.addEventListener("change", () => {
+      this.classSlot = Number(select.value);
+    });
+    this.refreshClasses();
+  }
+
+  /** Repopulate the class dropdown from storage (picks up edits/renames). */
+  private refreshClasses(): void {
+    const select = this.classSelect;
+    if (!select) return;
+    clearChildren(select);
     const classes = this.storage.getClasses();
     classes.forEach((cls, i) => {
       el("option", {
@@ -317,9 +330,6 @@ export class PreMatchMenu {
     });
     this.classSlot = Math.min(this.classSlot, Math.max(0, classes.length - 1));
     select.value = String(this.classSlot);
-    select.addEventListener("change", () => {
-      this.classSlot = Number(select.value);
-    });
   }
 
   // ---- Hardcore toggle ----
@@ -399,6 +409,7 @@ export class PreMatchMenu {
   }
 
   show(): void {
+    this.refreshClasses(); // reflect class renames/edits made since last shown
     this.overlay.style.display = "flex";
   }
 

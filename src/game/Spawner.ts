@@ -47,7 +47,12 @@ export class Spawner {
       }))
       .sort((a, b) => b.safety - a.safety);
 
-    const pool = ranked.slice(0, Math.min(SAFE_POOL, ranked.length));
+    // Only consider spawns that are genuinely far from enemies (within ~84% of
+    // the farthest spawn's distance), so enemies always respawn away from allies
+    // — then rotate among those few to avoid predictable spawn-camping.
+    const best = ranked[0].safety;
+    const safe = ranked.filter((r) => r.safety >= best * 0.7);
+    const pool = (safe.length > 0 ? safe : ranked).slice(0, Math.max(SAFE_POOL, 1));
     return pool[i % pool.length].spawn;
   }
 }

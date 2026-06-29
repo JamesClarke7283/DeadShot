@@ -10,6 +10,8 @@ import * as THREE from "../three.ts";
 import { createToonMaterial } from "../render/ToonMaterial.ts";
 import { addOutline } from "../render/OutlinePass.ts";
 import type { WeaponCategory, WeaponDef } from "./WeaponDefinition.ts";
+import type { Attachment } from "./AttachmentDefinitions.ts";
+import { buildAttachmentMeshes } from "./AttachmentVisuals.ts";
 
 const HIP_POS = new THREE.Vector3(0.22, -0.2, -0.55);
 const ADS_POS = new THREE.Vector3(0, -0.13, -0.4);
@@ -37,11 +39,17 @@ export class WeaponViewmodel {
     camera.add(this.root);
   }
 
-  setWeapon(def: WeaponDef, camoColor = 0x2b2f36): void {
+  setWeapon(
+    def: WeaponDef,
+    camoColor = 0x2b2f36,
+    attachments: ReadonlyArray<Attachment | string> = [],
+  ): void {
     // Rebuild the gun geometry for this category.
     this.gun.clear();
     this.camoMat = createToonMaterial({ color: camoColor });
     buildGun(this.gun, def.category, this.camoMat);
+    // Mount the equipped attachments (optics, barrel, grip, mag, stock).
+    this.gun.add(buildAttachmentMeshes(def.category, attachments));
     this.muzzle = new THREE.Object3D();
     this.muzzle.position.copy(gunMuzzleOffset(def.category));
     this.gun.add(this.muzzle);
@@ -127,7 +135,7 @@ function gunMuzzleOffset(cat: WeaponCategory): THREE.Vector3 {
   return new THREE.Vector3(0, 0.02, -len - 0.05);
 }
 
-function barrelLength(cat: WeaponCategory): number {
+export function barrelLength(cat: WeaponCategory): number {
   switch (cat) {
     case "sniper":
       return 0.9;
