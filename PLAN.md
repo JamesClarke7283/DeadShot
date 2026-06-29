@@ -206,7 +206,7 @@ low-poly geometry + `MeshToonMaterial` + inverted-hull outlines.
 
 ### Phase 9 — Class Editor & Persistence
 
-- [ ] **9.1** `src/persistence/Storage.ts` — typed localStorage wrapper (10 custom classes,
+- [x] **9.1** `src/persistence/Storage.ts` — typed localStorage wrapper (10 custom classes,
       settings, last match config) with schema versioning + migration. **Verify:** round-trip a
       class through save/load; bump schema version migrates cleanly.
 
