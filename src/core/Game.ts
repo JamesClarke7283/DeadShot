@@ -310,6 +310,7 @@ export class Game {
       playerAttachments: loadout.primary.attachments,
       playerCamo: camo,
       playerStreaks: loadout.streaks,
+      playerPerks: loadout.perks,
       playerTactical: loadout.tactical,
       playerLethal: loadout.lethal,
       respawnDelay: 4,
@@ -415,6 +416,20 @@ export class Game {
         );
       }
     } // end !hardcore HUD block
+
+    // Scorestreak activation: hold Z (streaks) + press 1 / 2 / 3 to call in the
+    // streak in that loadout slot (if it's been earned). Works in every mode.
+    if (this.input.isDown("streaks")) {
+      const streaks = m.streaks.loadout(p.id);
+      for (let i = 0; i < 3; i++) {
+        if (
+          this.input.wasKeyPressed(`Digit${i + 1}`) || this.input.wasKeyPressed(`Numpad${i + 1}`)
+        ) {
+          const id = streaks[i];
+          if (id && m.streaks.isAvailable(p.id, id)) m.activatePlayerStreak(id);
+        }
+      }
+    }
 
     // Throwables.
     if (this.input.wasPressed("lethal")) m.playerThrowLethal();

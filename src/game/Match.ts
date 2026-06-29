@@ -11,6 +11,8 @@ import type { Scene } from "../core/Scene.ts";
 import type { Camera } from "../core/Camera.ts";
 import type { Input } from "../core/Input.ts";
 import { VFX } from "../render/VFX.ts";
+import { createToonMaterial } from "../render/ToonMaterial.ts";
+import { addOutline } from "../render/OutlinePass.ts";
 import { ScreenEffects, type ScreenEffectsApi } from "../render/ScreenEffects.ts";
 import { getMap } from "../maps/maps.ts";
 import type { MapBuild } from "../maps/MapDefinition.ts";
@@ -64,6 +66,7 @@ export interface MatchOptions {
   playerAttachments?: string[];
   playerCamo?: number;
   playerStreaks?: string[];
+  playerPerks?: string[];
   playerTactical?: string;
   playerLethal?: string;
   respawnDelay?: number;
@@ -94,6 +97,8 @@ export class Match {
   private botStreakTimer = 0;
   private equipment!: EquipmentManager;
   private lastThrowG = -1;
+  private playerHasScavenger = false;
+  private ammoPickups: { mesh: THREE.Object3D; pos: THREE.Vector3; expire: number }[] = [];
 
   private actorList: Actor[] = [];
   private map!: MapBuild;
@@ -151,6 +156,7 @@ export class Match {
         camoColor: this.opts.playerCamo,
       });
       if (this.opts.playerStreaks) this.streaks.setLoadout(0, this.opts.playerStreaks);
+      this.playerHasScavenger = !!this.opts.playerPerks?.includes("scavenger");
       if (audio) {
         this.player.events = {
           onShot: (id) => audio.playerShot(id),
@@ -309,6 +315,7 @@ export class Match {
       }
     }
 
+    this.updateAmmoPickups(dt);
     this.updateStreaks(dt);
 
     // Win check (a nuke streak may have already ended the match above).
@@ -360,6 +367,55 @@ export class Match {
       time: this.elapsed,
     });
     if (this.killfeed.length > 8) this.killfeed.shift();
+
+    // Scavenger perk: enemies drop ammo the player can collect.
+    if (
+      this.playerHasScavenger && this.player &&
+      victim !== (this.player as unknown as Actor) &&
+      (this.player.team === "ffa" || victim.team !== this.player.team)
+    ) {
+      this.spawnAmmoPickup(victim);
+    }
+  }
+
+  private spawnAmmoPickup(victim: Actor): void {
+    const pos = victim.position(new THREE.Vector3());
+    pos.y = this.map.groundAt(pos.x, pos.z) + 0.4;
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.5, 0.35, 0.5),
+      createToonMaterial({ color: 0xffcc33, emissive: 0x3a2c00 }),
+    );
+    mesh.position.copy(pos);
+    addOutline(mesh, { thickness: 0.03 });
+    this.scene.dynamicRoot.add(mesh);
+    this.ammoPickups.push({ mesh, pos: pos.clone(), expire: this.elapsed + 25 });
+  }
+
+  private updateAmmoPickups(dt: number): void {
+    if (this.ammoPickups.length === 0) return;
+    const p = this.player;
+    const feet = p ? p.feet : null;
+    for (let i = this.ammoPickups.length - 1; i >= 0; i--) {
+      const pk = this.ammoPickups[i];
+      pk.mesh.rotation.y += dt * 2;
+      let collected = false;
+      if (p && p.alive && feet) {
+        const dx = feet.x - pk.pos.x;
+        const dz = feet.z - pk.pos.z;
+        if (dx * dx + dz * dz < 1.8 * 1.8) {
+          // Resupply: top up the magazine + refill reserve to max.
+          p.weapon.reserve = p.weapon.stats.reserve;
+          p.weapon.magazine = p.weapon.stats.magazine;
+          this.screen.tint("rgb(255,204,51)", 0.25, 0.4);
+          collected = true;
+        }
+      }
+      if (collected || this.elapsed >= pk.expire) {
+        this.scene.dynamicRoot.remove(pk.mesh);
+        (pk.mesh as THREE.Mesh).geometry.dispose();
+        this.ammoPickups.splice(i, 1);
+      }
+    }
   }
 
   formatWinner(): string {
@@ -463,6 +519,8 @@ export class Match {
   }
 
   dispose(): void {
+    for (const pk of this.ammoPickups) this.scene.dynamicRoot.remove(pk.mesh);
+    this.ammoPickups = [];
     this.equipment?.clear();
     for (const e of this.activeStreaks) e.streak.dispose(this.streakCtx);
     this.activeStreaks = [];

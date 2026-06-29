@@ -50,6 +50,16 @@ export class StreakMenu {
         textAlign: "center",
       },
     });
+    el("div", {
+      parent: this.wrap,
+      text: "Hold Z, press 1 – 3",
+      style: {
+        font: "600 11px/1 'Segoe UI', system-ui, sans-serif",
+        color: "#9fb0c4",
+        textAlign: "center",
+        marginTop: "-2px",
+      },
+    });
 
     this.list = el("div", {
       parent: this.wrap,
