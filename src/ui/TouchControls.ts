@@ -166,18 +166,35 @@ export class TouchControls {
     this.knob.style.top = `${35 + ny * max}px`;
   }
 
+  // Codes this controller is currently holding, so we only write on changes and
+  // never clobber keyboard/mouse input when the joystick is idle.
+  private held = new Set<string>();
+
+  private applyVirtual(code: string, on: boolean): void {
+    if (on) {
+      if (!this.held.has(code)) {
+        this.held.add(code);
+        this.input.setVirtual(code, true);
+      }
+    } else if (this.held.has(code)) {
+      this.held.delete(code);
+      this.input.setVirtual(code, false);
+    }
+  }
+
   /** Apply the joystick to virtual movement keys. Call each frame while visible. */
   update(): void {
-    this.input.setVirtual("KeyW", this.moveVec.y < -0.3);
-    this.input.setVirtual("KeyS", this.moveVec.y > 0.3);
-    this.input.setVirtual("KeyA", this.moveVec.x < -0.3);
-    this.input.setVirtual("KeyD", this.moveVec.x > 0.3);
+    this.applyVirtual("KeyW", this.moveVec.y < -0.3);
+    this.applyVirtual("KeyS", this.moveVec.y > 0.3);
+    this.applyVirtual("KeyA", this.moveVec.x < -0.3);
+    this.applyVirtual("KeyD", this.moveVec.x > 0.3);
   }
 
   setVisible(b: boolean): void {
     this.root.style.display = b ? "block" : "none";
     if (!b) {
-      for (const c of ["KeyW", "KeyS", "KeyA", "KeyD"]) this.input.setVirtual(c, false);
+      this.moveVec = { x: 0, y: 0 };
+      for (const c of ["KeyW", "KeyS", "KeyA", "KeyD"]) this.applyVirtual(c, false);
     }
   }
 

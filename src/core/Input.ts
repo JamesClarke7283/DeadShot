@@ -32,10 +32,10 @@ export type Action =
 export type Bindings = Record<Action, string[]>;
 
 export const DEFAULT_BINDINGS: Bindings = {
-  forward: ["KeyW"],
-  back: ["KeyS"],
-  left: ["KeyA"],
-  right: ["KeyD"],
+  forward: ["KeyW", "ArrowUp"],
+  back: ["KeyS", "ArrowDown"],
+  left: ["KeyA", "ArrowLeft"],
+  right: ["KeyD", "ArrowRight"],
   jump: ["Space"],
   crouch: ["ControlLeft", "KeyC"],
   sprint: ["ShiftLeft"],
@@ -81,8 +81,11 @@ export class Input {
 
   private attach(): void {
     const onKeyDown = (e: KeyboardEvent) => {
-      // Prevent Tab from moving focus, Space from scrolling, etc. while playing.
-      if (["Tab", "Space", "Backquote"].includes(e.code)) e.preventDefault();
+      // Prevent Tab from moving focus, Space/arrows from scrolling, etc.
+      if (
+        ["Tab", "Space", "Backquote", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]
+          .includes(e.code)
+      ) e.preventDefault();
       if (e.repeat) return;
       if (!this.down.has(e.code)) this.pressed.add(e.code);
       this.down.add(e.code);
