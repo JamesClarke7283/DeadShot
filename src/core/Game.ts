@@ -30,9 +30,26 @@ import { type BestPlayData, type KillcamData, Match, type MatchAudio } from "../
 import { chaseView, killcamView, Replay } from "../game/Replay.ts";
 import { TDM } from "../game/TDM.ts";
 import { FFA } from "../game/FFA.ts";
+import { DOMINATION } from "../game/Domination.ts";
+import { CTF } from "../game/CaptureTheFlag.ts";
+import type { ModeRules } from "../game/Mode.ts";
 import { getWeapon } from "../weapons/WeaponDefinition.ts";
 import { getCamo } from "../weapons/AttachmentDefinitions.ts";
-import type { PlayerScore } from "../game/Mode.ts";
+import type { ModeId, PlayerScore } from "../game/Mode.ts";
+
+/** Map a saved/lobby mode id to its rules. */
+function rulesFor(id: ModeId): ModeRules {
+  switch (id) {
+    case "ffa":
+      return FFA;
+    case "dom":
+      return DOMINATION;
+    case "ctf":
+      return CTF;
+    default:
+      return TDM;
+  }
+}
 
 export enum GameState {
   Boot = "Boot",
@@ -93,7 +110,7 @@ export class Game {
     rows: PlayerScore[];
     blue: number;
     red: number;
-    mode: "tdm" | "ffa";
+    mode: ModeId;
     bestPlay: BestPlayData | null;
   } | null = null;
 
@@ -343,7 +360,7 @@ export class Game {
     const loadout = this.storage.getClass(cfg.classSlot);
     const primary = getWeapon(loadout.primary.weaponId);
     const camo = getCamo(loadout.camo).color;
-    const mode = cfg.mode === "tdm" ? TDM : FFA;
+    const mode = rulesFor(cfg.mode);
 
     const matchAudio = this.makeMatchAudio();
 
@@ -392,7 +409,7 @@ export class Game {
     const loadout = this.storage.getClass(0); // each client brings its own class
     const primary = getWeapon(loadout.primary.weaponId);
     const camo = getCamo(loadout.camo).color;
-    const mode = s.mode === "tdm" ? TDM : FFA;
+    const mode = rulesFor(s.mode);
 
     this.match = new Match(this.scene, this.camera, this.input, {
       mapId: s.mapId,
@@ -461,12 +478,16 @@ export class Game {
     const blue = m.scoreboard.teamKills("blue");
     const red = m.scoreboard.teamKills("red");
 
+    // Objective modes (Domination / CTF) drive the scoreline from team control.
+    const obj = m.objectiveHud();
+
     // HUD readouts (hidden entirely in hardcore).
     if (!this.hardcore) {
       this.hud.setHealth(p.health, p.maxHealth);
       this.hud.setAmmo(p.weapon.magazine, p.weapon.reserve);
       this.hud.setWeaponName(p.weapon.def.name);
-      this.hud.setScoreline(blue, red, m.modeId);
+      this.hud.setScoreline(obj ? obj.blue : blue, obj ? obj.red : red, m.modeId);
+      this.hud.setObjective(obj);
       this.hud.setTimer(m.timeLeft);
 
       // Streak progress.

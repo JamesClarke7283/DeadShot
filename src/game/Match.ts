@@ -27,7 +27,7 @@ import { MatchWorld } from "./MatchWorld.ts";
 import { Player } from "./Player.ts";
 import { Scoreboard } from "./Scoreboard.ts";
 import { Spawner } from "./Spawner.ts";
-import type { ModeRules } from "./Mode.ts";
+import type { ModeId, ModeRules } from "./Mode.ts";
 import { SCORE } from "./Mode.ts";
 import type { TeamId } from "../core/types.ts";
 import { ScorestreakManager } from "../streaks/ScorestreakManager.ts";
@@ -40,6 +40,7 @@ import { RemoteActor } from "./RemoteActor.ts";
 import type { BotStateMsg, LobbyPlayer, PlayerStateMsg } from "../net/protocol.ts";
 import { type ActorSnap, type ReplayFrame, ReplayRecorder } from "./ReplayRecorder.ts";
 import type { AnimName } from "../characters/Character.ts";
+import { buildObjective, type Objective, type ObjectiveHud } from "./Objectives.ts";
 
 /** A captured death replay (last seconds before the player died). */
 export interface KillcamData {
@@ -121,7 +122,7 @@ export class Match {
   elapsed = 0;
   winner?: TeamId | number;
   winReason?: "score" | "time";
-  readonly modeId: "tdm" | "ffa";
+  readonly modeId: ModeId;
   readonly scoreboard = new Scoreboard();
   readonly streaks = new ScorestreakManager(STREAKS);
   readonly killfeed: KillEvent[] = [];
@@ -160,6 +161,9 @@ export class Match {
   private isHost = false;
   private remotes = new Map<number, RemoteActor>();
   private netSendTimer = 0;
+
+  // ---- Objective modes (Domination / CTF) ----
+  private objective: Objective | null = null;
 
   // ---- Replay (killcam + best play) ----
   private readonly recorder = new ReplayRecorder(10, 30);
@@ -294,6 +298,16 @@ export class Match {
     }
     for (const ra of this.remotes.values()) this.prevAlive.set(ra.id, true);
 
+    // Objective mode (Domination / CTF): build + show its world meshes.
+    if (this.mode.objective) {
+      this.objective = buildObjective(
+        this.mode.objective,
+        this.map.bounds,
+        (x, z) => this.map.groundAt(x, z),
+      );
+      this.scene.add(this.objective.root);
+    }
+
     // Player throwables.
     const eqCtx: EquipmentContext = {
       world: this.world,
@@ -422,12 +436,19 @@ export class Match {
 
     this.updateAmmoPickups(dt);
     this.updateInteractables(dt);
+    this.objective?.update(dt, {
+      actors: this.actorList,
+      groundAt: (x, z) => this.map.groundAt(x, z),
+      bounds: this.map.bounds,
+    });
     this.updateStreaks(dt);
     this.recorder.record(this.elapsed, this.snapshotActors());
 
     // Win check (a nuke streak may have already ended the match above).
     if (this.state !== "live") return;
-    const win = this.mode.checkWin(this.scoreboard, this.elapsed);
+    const win = this.objective
+      ? this.objective.isOver(this.elapsed, this.mode.timeLimit)
+      : this.mode.checkWin(this.scoreboard, this.elapsed);
     if (win.over) {
       this.finalizeBestPlay(); // capture a streak the player was still on
       this.state = "end";
@@ -635,6 +656,11 @@ export class Match {
     const k = this.killcam;
     this.killcam = null;
     return k;
+  }
+
+  /** Current objective state (Domination / CTF) for the HUD, or null. */
+  objectiveHud(): ObjectiveHud | null {
+    return this.objective?.hud() ?? null;
   }
 
   private spawnAmmoPickup(victim: Actor): void {
@@ -1101,6 +1127,11 @@ export class Match {
       ra.dispose();
     }
     this.remotes.clear();
+    if (this.objective) {
+      this.scene.dynamicRoot.remove(this.objective.root);
+      this.objective.dispose();
+      this.objective = null;
+    }
     this.net?.clearHandlers();
     this.recorder.clear();
     this.killcam = null;

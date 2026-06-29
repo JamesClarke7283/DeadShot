@@ -4,7 +4,7 @@
 
 import type { TeamId } from "../core/types.ts";
 
-export type ModeId = "tdm" | "ffa";
+export type ModeId = "tdm" | "ffa" | "dom" | "ctf";
 
 /** Score-per-action (streaks are scored separately by the streak manager). */
 export const SCORE = {
@@ -63,4 +63,7 @@ export interface ModeRules {
   assignTeam(index: number, total: number): TeamId;
   /** Decide whether the match is over given the scoreboard + elapsed seconds. */
   checkWin(sb: ScoreboardApi, elapsed: number): WinResult;
+  /** Objective kind for objective modes; the Match builds + runs it and uses its
+   * own win condition instead of checkWin. Kills are still scored normally. */
+  objective?: "dom" | "ctf";
 }

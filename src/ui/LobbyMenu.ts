@@ -8,7 +8,7 @@
 
 import { button, clearChildren, el } from "./dom.ts";
 import { NetClient } from "../net/NetClient.ts";
-import type { LobbyPlayer, LobbySettings } from "../net/protocol.ts";
+import type { LobbyPlayer, LobbySettings, NetMode } from "../net/protocol.ts";
 import { DEFAULT_SETTINGS } from "../net/protocol.ts";
 
 export interface LobbyStartPayload {
@@ -293,10 +293,15 @@ export class LobbyMenu {
     );
     this.select(
       "Mode",
-      [{ value: "tdm", text: "Team Deathmatch" }, { value: "ffa", text: "Free-for-All" }],
+      [
+        { value: "tdm", text: "Team Deathmatch" },
+        { value: "ffa", text: "Free-for-All" },
+        { value: "dom", text: "Domination" },
+        { value: "ctf", text: "Capture the Flag" },
+      ],
       this.settings.mode,
       (v) => {
-        this.settings.mode = v === "ffa" ? "ffa" : "tdm";
+        this.settings.mode = (["tdm", "ffa", "dom", "ctf"].includes(v) ? v : "tdm") as NetMode;
         this.pushSettings();
       },
     );

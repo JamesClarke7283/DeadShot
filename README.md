@@ -16,7 +16,8 @@ and as a native desktop window. Procedural-first: it runs fully with zero downlo
 - **12 scorestreaks** incl. UAV, care package, sentry, RC-XD, predator, attack heli, gunship,
   chopper gunner, strafe run, juggernaut, and a match-ending Nuke.
 - 3 hand-built maps (Desert Town, Forest Facility, Urban Docks) with terrain, buildings, foliage and
-  cover; **TDM** and **FFA** modes; 0–16 bots across Recruit / Regular / Veteran AI.
+  cover; **TDM**, **FFA**, **Domination** and **Capture the Flag** modes; 0–16 bots across Recruit /
+  Regular / Veteran AI.
 - 100 HP + regen, wave respawns, scoreboard, killfeed, minimap, HUD; mouse + keyboard, **gamepad**,
   and **touch** controls; a **hardcore** mode.
 

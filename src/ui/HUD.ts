@@ -16,7 +16,8 @@ import { Killfeed } from "./Killfeed.ts";
 import { ScoreboardUI } from "./ScoreboardUI.ts";
 import { StreakMenu } from "./StreakMenu.ts";
 import type { KillEvent } from "../game/Match.ts";
-import type { PlayerScore } from "../game/Mode.ts";
+import type { ModeId, PlayerScore } from "../game/Mode.ts";
+import type { ObjectiveHud } from "../game/Objectives.ts";
 
 export interface MinimapBlip {
   x: number;
@@ -55,6 +56,13 @@ export class HUD {
   private readonly streakPanel: HTMLElement;
   private streakRows: { wrap: HTMLElement; fill: HTMLElement; label: HTMLElement }[] = [];
   private streakSig = "";
+
+  // Objective panel (Domination points / CTF flags).
+  private readonly objectivePanel: HTMLElement;
+  private readonly objChipRow: HTMLElement;
+  private readonly objScore: HTMLElement;
+  private objChips: HTMLElement[] = [];
+  private objKind: "dom" | "ctf" | null = null;
 
   // Minimap.
   private readonly canvas: HTMLCanvasElement;
@@ -115,6 +123,27 @@ export class HUD {
         color: "#cdeb6e",
         letterSpacing: "0.08em",
       },
+    });
+
+    // Objective row (Domination points / CTF flags), hidden in non-objective modes.
+    this.objectivePanel = el("div", {
+      parent: top,
+      style: {
+        display: "none",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: "3px",
+        marginTop: "4px",
+      },
+    });
+    this.objChipRow = el("div", {
+      parent: this.objectivePanel,
+      style: { display: "flex", gap: "6px" },
+    });
+    this.objScore = el("div", {
+      parent: this.objectivePanel,
+      text: "",
+      style: { font: "700 12px/1 'Segoe UI', system-ui, sans-serif", color: "#9fb0c4" },
     });
 
     // ---- Bottom-left: health bar ----
@@ -416,12 +445,61 @@ export class HUD {
     this.weaponName.textContent = name.toUpperCase();
   }
 
-  setScoreline(blue: number, red: number, mode: "tdm" | "ffa"): void {
+  setScoreline(blue: number, red: number, mode: ModeId): void {
     if (mode === "ffa") {
       this.scoreline.textContent = `FFA   LEADER: ${blue}`;
     } else {
       this.scoreline.textContent = `BLUE  ${blue}  —  ${red}  RED`;
     }
+  }
+
+  /** Domination/CTF objective panel; pass null to hide it. */
+  setObjective(state: ObjectiveHud | null): void {
+    if (!state) {
+      this.objectivePanel.style.display = "none";
+      return;
+    }
+    this.objectivePanel.style.display = "flex";
+    const n = state.points?.length ?? state.flags?.length ?? 0;
+    if (state.kind !== this.objKind || this.objChips.length !== n) {
+      this.objKind = state.kind;
+      clearChildren(this.objChipRow);
+      this.objChips = [];
+      for (let i = 0; i < n; i++) {
+        this.objChips.push(el("span", {
+          parent: this.objChipRow,
+          style: {
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            minWidth: "56px",
+            padding: "3px 8px",
+            borderRadius: "6px",
+            border: "2px solid #0a0c10",
+            font: "800 11px/1 'Segoe UI', system-ui, sans-serif",
+            color: "#0a0c10",
+          },
+        }));
+      }
+    }
+    if (state.points) {
+      state.points.forEach((p, i) => {
+        const c = this.objChips[i];
+        if (!c) return;
+        c.textContent = p.label;
+        c.style.background = objColor(p.owner);
+        c.style.opacity = String(0.55 + 0.45 * p.progress);
+      });
+    } else if (state.flags) {
+      state.flags.forEach((f, i) => {
+        const c = this.objChips[i];
+        if (!c) return;
+        c.textContent = `${f.team.toUpperCase()} ${f.status}`;
+        c.style.background = objColor(f.team);
+        c.style.opacity = "1";
+      });
+    }
+    this.objScore.textContent = `${state.blue} — ${state.red}  ·  first to ${state.cap}`;
   }
 
   setTimer(secondsLeft: number): void {
@@ -474,8 +552,9 @@ export class HUD {
     this.scoreboard.setVisible(visible);
   }
 
-  updateScoreboard(rows: PlayerScore[], blue: number, red: number, mode: "tdm" | "ffa"): void {
-    this.scoreboard.update(rows, blue, red, mode);
+  updateScoreboard(rows: PlayerScore[], blue: number, red: number, mode: ModeId): void {
+    // The scoreboard table only distinguishes FFA from team layouts.
+    this.scoreboard.update(rows, blue, red, mode === "ffa" ? "ffa" : "tdm");
   }
 
   // ---- Minimap ----
@@ -611,6 +690,11 @@ export class HUD {
     this.prompt.remove();
     this.layer.remove();
   }
+}
+
+/** Team/owner color for the objective chips. */
+function objColor(owner: string): string {
+  return owner === "blue" ? "#7ab8ff" : owner === "red" ? "#ff7a7a" : "#9aa0a8";
 }
 
 /** Green at full health, ramping through yellow to red as it drops. */
