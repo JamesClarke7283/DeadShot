@@ -347,3 +347,23 @@ low-poly geometry + `MeshToonMaterial` + inverted-hull outlines.
 
 **Total:** 14 phases, ~38 automatable tasks, 3 `[MANUAL]` QA tasks, 5 stretch tasks. Each
 automatable task is one commit boundary.
+
+---
+
+<plan-complete>
+All automatable tasks (Phases 0–12, 13.4, 14) are implemented, type-checked
+(deno check), linted (deno lint), and covered by 93 passing unit tests; the full
+client bundles cleanly and was verified in-browser through Phase 5 (engine,
+cartoon render, characters, weapons/recoil/RPG, tacticals, maps + collision).
+Phases 6–14 are verified via headless simulation tests (bot-vs-bot kills, full
+TDM/FFA matches to a winner, respawns, scorestreaks incl. nuke, map integrity,
+storage round-trip/migration) plus clean type-check + bundle build of the
+integrated menus/HUD/audio/match flow.
+
+Remaining [MANUAL] tasks (require a human at a display):
+- 13.1 Playtest balance pass — starting values + rationale captured in
+  docs/balance-notes.md; needs human validation across 3 matches.
+- 13.2 Per-map visual QA — walk each map for fall-through / z-fighting / LOD.
+- 13.3 Desktop client QA on Linux — confirm the webview_deno window, pointer
+  lock, and audio (needs WebKitGTK + a display).
+</plan-complete>
