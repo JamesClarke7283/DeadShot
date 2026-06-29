@@ -132,13 +132,13 @@ low-poly geometry + `MeshToonMaterial` + inverted-hull outlines.
 
 ### Phase 5 — Maps
 
-- [ ] **5.1** `src/maps/Terrain.ts` + `Building.ts` + `Foliage.ts` + `Obstacle.ts` — shared geometry
+- [x] **5.1** `src/maps/Terrain.ts` + `Building.ts` + `Foliage.ts` + `Obstacle.ts` — shared geometry
       builders (heightmap terrain with toon material, modular buildings from boxes with
       windows/doors, instanced foliage for plants/grass, crates/cars/barriers as obstacles). All
       collidable via a merged BVH. **Verify:** walk a test layout; collisions stop the player;
       plants sway via vertex shader.
 
-- [ ] **5.2** `src/maps/MapDefinition.ts` interface + `DesertTown.ts` — flat sandy terrain, adobe
+- [x] **5.2** `src/maps/MapDefinition.ts` interface + `DesertTown.ts` — flat sandy terrain, adobe
       buildings, market stalls, palm trees, central mosque dome, long sightlines + alley CQB.
       Includes spawn points + waypoint graph for bot nav. **Verify:** load map, traverse, no
       fall-through, sniper perches accessible.

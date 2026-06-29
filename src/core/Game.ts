@@ -155,8 +155,8 @@ export class Game {
     document.getElementById("loading")?.classList.add("hidden");
   }
 
-  // ---- Built-in Phase 1-3 sandbox (replaced by the match in later phases) ----
-  private sandbox: Sandbox | null = null;
+  // ---- Built-in Phase 1-5 sandbox (replaced by the match in later phases) ----
+  sandbox: Sandbox | null = null;
 
   private installSandboxState(): void {
     this.registerState(GameState.Playing, {
