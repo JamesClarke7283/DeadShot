@@ -1,0 +1,13 @@
+# Loop runner artifacts
+.loop*
+
+# Fetched asset caches (downloaded by `deno task fetch-assets`)
+/public/models/cache
+/public/audio/cache
+
+# OS / editor
+.DS_Store
+*.swp
+
+# Deno
+deno.lock

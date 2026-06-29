@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>DeadShot</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <!-- WebGL render target -->
+    <canvas id="game"></canvas>
+
+    <!-- DOM-based HUD / menu overlay root (filled in by src/ui) -->
+    <div id="ui-root"></div>
+
+    <!-- Boot loading screen, removed once the engine reports ready -->
+    <div id="loading">
+      <div class="logo">DEADSHOT</div>
+      <div class="bar">
+        <div id="loading-fill"></div>
+      </div>
+      <div id="loading-status">Booting&hellip;</div>
+    </div>
+
+    <!--
+      The Deno server (src/server/server.ts) bundles src/main.ts (and all its
+      TypeScript + npm:three imports) via esbuild and serves the result at
+      /bundle.js. The browser only ever loads plain JavaScript; no in-browser
+      import map is required.
+    -->
+    <script type="module" src="/bundle.js"></script>
+  </body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "target": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noImplicitOverride": true,
+    "noUnusedLocals": false,
+    "skipLibCheck": true,
+    "types": []
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["public/models", "public/audio/cache"]
+}
