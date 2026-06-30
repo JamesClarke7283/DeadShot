@@ -6,6 +6,8 @@ import {
   CAMO_PALETTE,
   computeWeaponStats,
   getAttachment,
+  getCamo,
+  isCustomCamo,
 } from "./AttachmentDefinitions.ts";
 
 Deno.test("every slot has at least one attachment", () => {
@@ -71,4 +73,15 @@ Deno.test("launcher keeps its rocket spec through compute", () => {
 Deno.test("camo palette is non-empty and lookups fall back", () => {
   assert(CAMO_PALETTE.length >= 8);
   assertEquals(getAttachment("reddot").slot, "optic");
+  // Unknown ids fall back to the first preset.
+  assertEquals(getCamo("does-not-exist"), CAMO_PALETTE[0]);
+});
+
+Deno.test("camo supports custom hex colours", () => {
+  assert(isCustomCamo("#ff8800"));
+  assert(!isCustomCamo("gunmetal"));
+  assert(!isCustomCamo("#fff")); // shorthand not accepted
+  assertEquals(getCamo("#ff8800").color, 0xff8800);
+  assertEquals(getCamo("#FF8800").id, "#ff8800"); // normalised to lower-case
+  assertEquals(getCamo("#ff8800").name, "Custom");
 });

@@ -9,6 +9,7 @@ export interface ElOptions {
   style?: Partial<CSSStyleDeclaration>;
   parent?: HTMLElement;
   onClick?: (e: MouseEvent) => void;
+  onInput?: (e: Event) => void;
   attrs?: Record<string, string>;
   children?: HTMLElement[];
 }
@@ -25,6 +26,7 @@ export function el<K extends keyof HTMLElementTagNameMap>(
   if (opts.style) Object.assign(node.style, opts.style);
   if (opts.attrs) { for (const [k, v] of Object.entries(opts.attrs)) node.setAttribute(k, v); }
   if (opts.onClick) node.addEventListener("click", opts.onClick as EventListener);
+  if (opts.onInput) node.addEventListener("input", opts.onInput as EventListener);
   if (opts.children) { for (const c of opts.children) node.appendChild(c); }
   if (opts.parent) opts.parent.appendChild(node);
   return node;

@@ -297,7 +297,20 @@ export const CAMO_PALETTE: readonly Camo[] = [
   { id: "orange", name: "Hazard Orange", color: 0xff7b00 },
 ] as const;
 
+/** A camo id that is a literal "#rrggbb" colour rather than a palette entry. */
+const CUSTOM_CAMO_RE = /^#([0-9a-f]{6})$/i;
+
+/** True if `id` is a custom hex colour ("#rrggbb") rather than a preset camo id. */
+export function isCustomCamo(id: string): boolean {
+  return CUSTOM_CAMO_RE.test(id);
+}
+
 export function getCamo(id: string): Camo {
+  const m = CUSTOM_CAMO_RE.exec(id);
+  if (m) {
+    const hex = m[1].toLowerCase();
+    return { id: `#${hex}`, name: "Custom", color: parseInt(hex, 16) };
+  }
   return CAMO_PALETTE.find((c) => c.id === id) ?? CAMO_PALETTE[0];
 }
 

@@ -105,6 +105,7 @@ export class ClassEditor {
   private nameInput?: HTMLInputElement;
   private statBars: Record<string, StatBar> = {};
   private camoSwatches: HTMLButtonElement[] = [];
+  private camoCustomInput?: HTMLInputElement;
   private primaryAttachContainer?: HTMLElement;
 
   // Preview.
@@ -678,6 +679,43 @@ export class ClassEditor {
       this.camoSwatches.push(sw);
       grid.appendChild(sw);
     }
+
+    // Make the native colour input's swatch fill its tile (Chromium webview).
+    if (!document.getElementById("deadshot-camo-style")) {
+      const style = el("style", { parent: document.head });
+      style.id = "deadshot-camo-style";
+      style.textContent = "input.ds-camo-custom::-webkit-color-swatch-wrapper{padding:0}" +
+        "input.ds-camo-custom::-webkit-color-swatch{border:none;border-radius:5px}";
+    }
+
+    // Custom colour: pick any colour, not just the presets.
+    const custom = el("input", {
+      parent: grid,
+      class: "ds-camo-custom",
+      attrs: {
+        type: "color",
+        title: "Custom colour",
+        value: hexColor(getCamo(this.loadout.camo).color),
+      },
+      style: {
+        pointerEvents: "auto",
+        cursor: "pointer",
+        width: "40px",
+        height: "40px",
+        borderRadius: "8px",
+        border: "2px dashed #5b6675",
+        background: "none",
+        padding: "0",
+      },
+      onInput: () => {
+        this.loadout.camo = custom.value;
+        this.persist();
+        this.refreshCamoSelection();
+        this.syncPreviewCamo();
+      },
+    });
+    this.camoCustomInput = custom;
+    this.refreshCamoSelection();
   }
 
   private buildStatBars(parent: HTMLElement): void {
@@ -827,10 +865,19 @@ export class ClassEditor {
   }
 
   private refreshCamoSelection(): void {
+    let presetActive = false;
     for (const sw of this.camoSwatches) {
       const active = (sw.dataset as DOMStringMap).camo === this.loadout.camo;
+      if (active) presetActive = true;
       sw.style.outline = active ? "3px solid #cdeb6e" : "none";
       sw.style.outlineOffset = "1px";
+    }
+    if (this.camoCustomInput) {
+      // The custom tile is active whenever the colour isn't one of the presets.
+      this.camoCustomInput.style.outline = presetActive ? "none" : "3px solid #cdeb6e";
+      this.camoCustomInput.style.outlineOffset = "1px";
+      // Mirror the live colour so the picker opens on the current selection.
+      this.camoCustomInput.value = hexColor(getCamo(this.loadout.camo).color);
     }
   }
 
