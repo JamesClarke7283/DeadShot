@@ -10,8 +10,9 @@ import { createBuilding } from "./Building.ts";
 import { createTrees, updateWind } from "./Foliage.ts";
 import { createBarrier, createCar, createCrate } from "./Obstacle.ts";
 import { CollisionWorld, registerColliders } from "./Collision.ts";
-import type { MapBuild, MapDefinition, SpawnPoint, Waypoint } from "./MapDefinition.ts";
+import type { MapBuild, MapDefinition, Waypoint } from "./MapDefinition.ts";
 import { buildGridWaypoints } from "./Waypoints.ts";
+import { scatterSpawns } from "./SpawnLayout.ts";
 
 const SAND = 0xd9c08a;
 const ADOBE = [0xcdb38b, 0xc7a06f, 0xd8c39a, 0xb9986a];
@@ -163,16 +164,10 @@ export const DesertTown: MapDefinition = {
     // Perimeter wall to bound the play area.
     addPerimeter(root, collision, 72);
 
-    const spawns: SpawnPoint[] = [];
-    for (let i = 0; i < 6; i++) {
-      spawns.push({ position: new THREE.Vector3(-50 + i * 6, 0, -58), yaw: 0, team: "blue" });
-      spawns.push({ position: new THREE.Vector3(-50 + i * 6, 0, 58), yaw: Math.PI, team: "red" });
-      spawns.push({
-        position: new THREE.Vector3(50 - i * 8, 0, -10 + (i % 2) * 20),
-        yaw: 0,
-        team: "ffa",
-      });
-    }
+    const spawns = scatterSpawns(collision, {
+      bounds: { minX: -70, maxX: 70, minZ: -70, maxZ: 70 },
+      groundAt: (x, z) => terrain.sampleHeight(x, z),
+    });
 
     const waypoints: Waypoint[] = buildGridWaypoints(collision, {
       minX: -64,

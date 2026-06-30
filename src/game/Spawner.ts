@@ -1,8 +1,9 @@
 // Picks spawn points that keep players away from live enemies AND spread the
-// team out (so allies don't all land on the same pad). With no enemies it is a
-// deterministic round-robin over the team's spawns; with enemies it ranks each
-// candidate by distance-to-nearest-enemy plus distance-to-recent-ally-spawns and
-// takes the best, remembering recent picks so the team fans out.
+// team out, then randomises among the safest few so the exact pad is not
+// predictable. Each candidate is scored by distance-to-nearest-enemy (safety)
+// plus distance-to-recent-ally-spawns (spread); we then pick at random among the
+// candidates scoring within SCORE_BAND of the best. Recent picks are remembered
+// so the team keeps fanning out instead of stacking on one pad.
 
 import * as THREE from "../three.ts";
 import type { SpawnPoint } from "../maps/MapDefinition.ts";
@@ -10,21 +11,22 @@ import type { TeamId } from "../core/types.ts";
 
 /** Weight of ally-spread relative to enemy-distance when ranking spawns. */
 const SPREAD_WEIGHT = 0.8;
+/** Spawns scoring within this many units of the best are all fair game. */
+const SCORE_BAND = 14;
 
 export class Spawner {
   private readonly spawns: SpawnPoint[];
-  /** Per-team round-robin cursor (no-enemy case). */
-  private readonly cursor = new Map<TeamId, number>();
+  private readonly rng: () => number;
   /** Recently-used spawn positions per team, to spread the team out. */
   private readonly recent = new Map<TeamId, THREE.Vector3[]>();
 
-  constructor(spawns: SpawnPoint[]) {
+  constructor(spawns: SpawnPoint[], rng: () => number = Math.random) {
     this.spawns = spawns;
+    this.rng = rng;
   }
 
-  /** Reset the rotation + spread memory (e.g. on a new round). */
+  /** Reset the spread memory (e.g. on a new round). */
   reset(): void {
-    this.cursor.clear();
     this.recent.clear();
   }
 
@@ -35,30 +37,27 @@ export class Spawner {
       throw new Error("Spawner: no spawn points available");
     }
 
-    // No enemies: deterministic round-robin over the team's spawns.
-    if (enemyPositions.length === 0) {
-      const i = this.cursor.get(team) ?? 0;
-      this.cursor.set(team, i + 1);
-      const chosen = candidates[i % candidates.length];
-      this.remember(team, chosen, candidates.length);
-      return chosen;
-    }
-
-    // Rank by safety (far from enemies) + spread (far from recent ally spawns).
+    // Score every candidate: far from enemies (safety) + far from recent ally
+    // spawns (spread). With no enemies present the safety term is simply zero.
     const recent = this.recent.get(team) ?? [];
-    let best = candidates[0];
     let bestScore = -Infinity;
-    for (const s of candidates) {
-      const enemyDist = Math.sqrt(nearestDistanceSq(s.position, enemyPositions));
-      const allyDist = recent.length > 0 ? Math.sqrt(nearestDistanceSq(s.position, recent)) : 1000;
+    const scored = candidates.map((s) => {
+      const enemyDist = enemyPositions.length > 0
+        ? Math.sqrt(nearestDistanceSq(s.position, enemyPositions))
+        : 0;
+      const allyDist = recent.length > 0 ? Math.sqrt(nearestDistanceSq(s.position, recent)) : 0;
       const score = enemyDist + SPREAD_WEIGHT * allyDist;
-      if (score > bestScore) {
-        bestScore = score;
-        best = s;
-      }
-    }
-    this.remember(team, best, candidates.length);
-    return best;
+      if (score > bestScore) bestScore = score;
+      return { spawn: s, score };
+    });
+
+    // Randomise among the spawns nearly as good as the best, so the spot stays
+    // safe + spread but is not perfectly predictable.
+    const eligible = scored.filter((c) => c.score >= bestScore - SCORE_BAND);
+    const idx = Math.min(eligible.length - 1, Math.floor(this.rng() * eligible.length));
+    const chosen = eligible[idx].spawn;
+    this.remember(team, chosen, candidates.length);
+    return chosen;
   }
 
   private remember(team: TeamId, spawn: SpawnPoint, padCount: number): void {

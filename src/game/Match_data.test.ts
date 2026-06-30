@@ -189,20 +189,28 @@ Deno.test("Spawner: falls back to all spawns when team has none", () => {
   assert(spawns.includes(p));
 });
 
-Deno.test("Spawner: round-robins through team spawns when no enemies", () => {
-  const spawns = [spawn(0, 0, "blue"), spawn(10, 0, "blue"), spawn(20, 0, "blue")];
-  const spawner = new Spawner(spawns);
-
-  const first = spawner.pick("blue", []);
-  const second = spawner.pick("blue", []);
-  const third = spawner.pick("blue", []);
-  assertEquals(first.position.x, 0);
-  assertEquals(second.position.x, 10);
-  assertEquals(third.position.x, 20);
+Deno.test("Spawner: spreads consecutive picks across team spawns", () => {
+  const spawns = [spawn(0, 0, "blue"), spawn(40, 0, "blue"), spawn(80, 0, "blue")];
+  // rng -> 0 always takes the first eligible; ally-spread should still move the
+  // pick off the previous pad rather than stacking the team on one spot.
+  const spawner = new Spawner(spawns, () => 0);
+  const a = spawner.pick("blue", []);
+  const b = spawner.pick("blue", []);
+  assert(a.position.x !== b.position.x, "consecutive spawns should differ");
 
   spawner.reset();
   const afterReset = spawner.pick("blue", []);
-  assertEquals(afterReset.position.x, 0);
+  assertEquals(afterReset.position.x, a.position.x);
+});
+
+Deno.test("Spawner: randomises among the safe spawns", () => {
+  // Three near-identical, equally-safe spawns far from the lone enemy: which one
+  // is chosen should depend on the RNG, not always be the same pad.
+  const spawns = [spawn(0, 100, "blue"), spawn(2, 100, "blue"), spawn(4, 100, "blue")];
+  const enemy = [new THREE.Vector3(0, 0, 0)];
+  const low = new Spawner(spawns, () => 0).pick("blue", enemy);
+  const high = new Spawner(spawns, () => 0.99).pick("blue", enemy);
+  assert(low.position.x !== high.position.x, "RNG should change which safe spawn is picked");
 });
 
 // --- TDM ---

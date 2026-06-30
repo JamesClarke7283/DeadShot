@@ -20,7 +20,7 @@ export interface GridOptions {
 }
 
 /** True if a point is clear of all collider boxes at body height. */
-function pointFree(
+export function pointFree(
   collision: CollisionWorld,
   x: number,
   z: number,

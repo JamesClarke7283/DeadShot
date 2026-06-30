@@ -17,8 +17,9 @@ import {
   createCrate,
 } from "./Obstacle.ts";
 import { CollisionWorld, registerColliders } from "./Collision.ts";
-import type { MapBuild, MapDefinition, SpawnPoint, Waypoint } from "./MapDefinition.ts";
+import type { MapBuild, MapDefinition, Waypoint } from "./MapDefinition.ts";
 import { buildGridWaypoints } from "./Waypoints.ts";
+import { scatterSpawns } from "./SpawnLayout.ts";
 
 const CONCRETE = 0x6b6f74;
 const CONTAINER_COLORS = [0x2a6fb3, 0xb3202a, 0x2e7d4f, 0xd4a017, 0x8a8d91];
@@ -230,16 +231,10 @@ export const UrbanDocks: MapDefinition = {
     // Perimeter wall to bound the play area.
     addPerimeter(root, collision, 72);
 
-    const spawns: SpawnPoint[] = [];
-    for (let i = 0; i < 6; i++) {
-      spawns.push({ position: new THREE.Vector3(-50 + i * 6, 0, -58), yaw: 0, team: "blue" });
-      spawns.push({ position: new THREE.Vector3(-50 + i * 6, 0, 58), yaw: Math.PI, team: "red" });
-      spawns.push({
-        position: new THREE.Vector3(50 - i * 8, 0, -12 + (i % 2) * 24),
-        yaw: 0,
-        team: "ffa",
-      });
-    }
+    const spawns = scatterSpawns(collision, {
+      bounds: { minX: -70, maxX: 70, minZ: -70, maxZ: 70 },
+      groundAt: () => 0,
+    });
 
     const waypoints: Waypoint[] = buildGridWaypoints(collision, {
       minX: -64,

@@ -12,8 +12,9 @@ import { createGrass, createTrees, updateWind } from "./Foliage.ts";
 import { createBarrel, createBarrier, createCar, createCrate } from "./Obstacle.ts";
 import { CollisionWorld, registerColliders } from "./Collision.ts";
 import type { TreePlacement } from "./Foliage.ts";
-import type { MapBuild, MapDefinition, SpawnPoint, Waypoint } from "./MapDefinition.ts";
+import type { MapBuild, MapDefinition, Waypoint } from "./MapDefinition.ts";
 import { buildGridWaypoints } from "./Waypoints.ts";
+import { scatterSpawns } from "./SpawnLayout.ts";
 
 const GROUND = 0x5f8f4e;
 const CONCRETE = [0x8a8d91, 0x6f7378];
@@ -171,28 +172,10 @@ export const ForestFacility: MapDefinition = {
     // Bounding wall around the play area.
     addPerimeter(root, collision, groundAt, 72);
 
-    const spawns: SpawnPoint[] = [];
-    for (let i = 0; i < 6; i++) {
-      const bx = -50 + i * 6;
-      const rx = -50 + i * 6;
-      const fx = 50 - i * 8;
-      const fz = -10 + (i % 2) * 20;
-      spawns.push({
-        position: new THREE.Vector3(bx, groundAt(bx, -58), -58),
-        yaw: 0,
-        team: "blue",
-      });
-      spawns.push({
-        position: new THREE.Vector3(rx, groundAt(rx, 58), 58),
-        yaw: Math.PI,
-        team: "red",
-      });
-      spawns.push({
-        position: new THREE.Vector3(fx, groundAt(fx, fz), fz),
-        yaw: 0,
-        team: "ffa",
-      });
-    }
+    const spawns = scatterSpawns(collision, {
+      bounds: { minX: -70, maxX: 70, minZ: -70, maxZ: 70 },
+      groundAt,
+    });
 
     const waypoints: Waypoint[] = buildGridWaypoints(collision, {
       minX: -64,
