@@ -44,6 +44,8 @@ export class BotAI {
   private repathTimer = 0;
   private triggerPulse = false; // alternates to fire non-auto weapons
   private selectTimer = 0;
+  private stuckTime = 0;
+  private combatPathTimer = 0;
   private readonly error = new THREE.Vector3();
   private readonly aimNoise: { x: number; y: number } = { x: 0, y: 0 };
 
@@ -170,24 +172,108 @@ export class BotAI {
     const onStation = goal
       ? (bot.feet.x - goal.x) ** 2 + (bot.feet.z - goal.z) ** 2 <= goal.radius * goal.radius
       : false;
+    let dest: THREE.Vector3 | null = null;
+    let speed = bot.moveSpeed();
     if (goal?.kind === "carry") {
       // Carriers get a small sprint edge — without it the long run home
       // through the enemy half almost never survives.
-      const dest = new THREE.Vector3(goal.x, 0, goal.z);
-      bot.moving = bot.stepToward(dest, bot.moveSpeed() * 1.15, dt, ctx);
+      dest = new THREE.Vector3(goal.x, 0, goal.z);
+      speed *= 1.15;
     } else if (goal && !onStation && bot.health > RETREAT_HEALTH) {
-      const dest = new THREE.Vector3(goal.x, 0, goal.z);
-      bot.moving = bot.stepToward(dest, bot.moveSpeed() * 0.9, dt, ctx);
+      dest = new THREE.Vector3(goal.x, 0, goal.z);
+      speed *= 0.9;
     } else if (bot.health <= RETREAT_HEALTH) {
       _away.set(bot.feet.x - _tgtEye.x, 0, bot.feet.z - _tgtEye.z).normalize();
-      const dest = new THREE.Vector3(bot.feet.x + _away.x * 4, 0, bot.feet.z + _away.z * 4);
-      bot.moving = bot.stepToward(dest, bot.moveSpeed(), dt, ctx);
+      dest = new THREE.Vector3(bot.feet.x + _away.x * 4, 0, bot.feet.z + _away.z * 4);
     } else if (dist > effectiveRange * 0.7) {
-      const dest = new THREE.Vector3(_tgtEye.x, 0, _tgtEye.z);
-      bot.moving = bot.stepToward(dest, bot.moveSpeed(), dt, ctx);
+      dest = new THREE.Vector3(_tgtEye.x, 0, _tgtEye.z);
     }
+    if (dest) bot.moving = this.moveCombat(bot, dest, speed, dt, ctx);
 
     this.fire(bot, dt, ctx);
+  }
+
+  /**
+   * Combat movement: beeline while it works, but when a wall stops progress,
+   * route via the waypoint graph toward the destination for a couple of
+   * seconds (or sidestep when no route exists) — never grind at geometry.
+   */
+  private moveCombat(
+    bot: Bot,
+    dest: THREE.Vector3,
+    speed: number,
+    dt: number,
+    ctx: BotContext,
+  ): boolean {
+    let moving: boolean;
+    if (this.combatPathTimer > 0 && bot.pathIndex < bot.path.length) {
+      this.combatPathTimer -= dt;
+      moving = this.followPath(bot, speed, dt, ctx, false);
+    } else {
+      this.combatPathTimer = 0;
+      moving = bot.stepToward(dest, speed, dt, ctx);
+    }
+    if (this.trackStuck(moving && bot.blocked, dt)) {
+      bot.path = ctx.navigator.findPath(bot.feet, dest);
+      bot.pathIndex = 0;
+      if (bot.path.length > 1) {
+        this.combatPathTimer = 2.5;
+      } else {
+        this.sidestep(bot, dest.x - bot.feet.x, dest.z - bot.feet.z, ctx);
+        this.combatPathTimer = 0.6;
+      }
+    }
+    return moving;
+  }
+
+  /** Accumulate blocked time; true (and reset) once it crosses the threshold. */
+  private trackStuck(blockedNow: boolean, dt: number): boolean {
+    if (blockedNow) this.stuckTime += dt;
+    else this.stuckTime = Math.max(0, this.stuckTime - dt * 3);
+    if (this.stuckTime >= 0.4) {
+      this.stuckTime = 0;
+      return true;
+    }
+    return false;
+  }
+
+  /** Point the path at a spot ~3m perpendicular to the blocked direction. */
+  private sidestep(bot: Bot, dirX: number, dirZ: number, ctx: BotContext): void {
+    const len = Math.hypot(dirX, dirZ) || 1;
+    const sign = Math.random() < 0.5 ? 1 : -1;
+    const px = (dirZ / len) * sign;
+    const pz = (-dirX / len) * sign;
+    const x = bot.feet.x + px * 3;
+    const z = bot.feet.z + pz * 3;
+    bot.path = [new THREE.Vector3(x, ctx.groundAt(x, z), z)];
+    bot.pathIndex = 0;
+  }
+
+  /**
+   * Walk the current path, skipping nodes collision keeps us just shy of.
+   * `face` turns the bot along the movement direction (patrol); combat leaves
+   * the aim on the enemy. Returns whether the bot is still moving.
+   */
+  private followPath(bot: Bot, speed: number, dt: number, ctx: BotContext, face: boolean): boolean {
+    if (bot.pathIndex >= bot.path.length) return false;
+    let node = bot.path[bot.pathIndex];
+    while (
+      bot.pathIndex < bot.path.length - 1 &&
+      Math.hypot(node.x - bot.feet.x, node.z - bot.feet.z) < 0.5
+    ) {
+      node = bot.path[++bot.pathIndex];
+    }
+    if (face) {
+      _dir.set(node.x - bot.feet.x, 0, node.z - bot.feet.z);
+      if (_dir.lengthSq() > 1e-4) {
+        _dir.normalize();
+        bot.yaw = Math.atan2(_dir.x, _dir.z);
+        bot.aimDir.copy(_dir);
+      }
+    }
+    const moving = bot.stepToward(node, speed, dt, ctx);
+    if (!moving) bot.pathIndex++;
+    return moving;
   }
 
   // ---- Patrol / navigation ----
@@ -221,21 +307,17 @@ export class BotAI {
       bot.pathIndex = 0;
     }
 
-    if (bot.path.length > 0 && bot.pathIndex < bot.path.length) {
-      const node = bot.path[bot.pathIndex];
-      _dir.set(node.x - bot.feet.x, 0, node.z - bot.feet.z);
-      if (_dir.lengthSq() > 1e-4) {
-        _dir.normalize();
-        bot.yaw = Math.atan2(_dir.x, _dir.z);
-        bot.aimDir.copy(_dir);
-      }
-      // Flag carriers sprint (with the carry edge); others at patrol pace.
-      const speed = bot.moveSpeed() * (goal?.kind === "carry" ? 1.15 : 0.8);
-      bot.moving = bot.stepToward(node, speed, dt, ctx);
-      if (!bot.moving) bot.pathIndex++;
-    } else {
-      bot.moving = false;
+    // Flag carriers sprint (with the carry edge); others at patrol pace.
+    const speed = bot.moveSpeed() * (goal?.kind === "carry" ? 1.15 : 0.8);
+    bot.moving = this.followPath(bot, speed, dt, ctx, true);
+
+    // Wedged against geometry: sidestep off the wall, then repath shortly.
+    if (this.trackStuck(bot.moving && bot.blocked, dt)) {
+      const node = bot.path[Math.min(bot.pathIndex, bot.path.length - 1)];
+      if (node) this.sidestep(bot, node.x - bot.feet.x, node.z - bot.feet.z, ctx);
+      this.repathTimer = 0.7;
     }
+
     // Update weapon (no fire) so reloads/cooldowns still tick.
     this.fire(bot, dt, ctx);
   }

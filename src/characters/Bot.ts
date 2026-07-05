@@ -188,17 +188,33 @@ export class Bot implements Actor {
     this.syncTransform();
   }
 
-  /** Move the feet toward a world point with collision; returns true if moving. */
+  /** True when the last stepToward call was mostly stopped by collision. */
+  blocked = false;
+
+  /**
+   * Move the feet toward a world point with collision; returns true if moving.
+   * X and Z advance separately with collision between, so hitting a wall at an
+   * angle slides along it instead of pinning the bot in place; `blocked`
+   * records whether the step still made no real progress (head-on wall).
+   */
   stepToward(target: THREE.Vector3, speed: number, dt: number, ctx: BotContext): boolean {
     const dx = target.x - this.feet.x;
     const dz = target.z - this.feet.z;
     const dist = Math.hypot(dx, dz);
-    if (dist < 0.15) return false;
+    if (dist < 0.15) {
+      this.blocked = false;
+      return false;
+    }
     const inv = 1 / dist;
-    this.feet.x += dx * inv * speed * dt;
-    this.feet.z += dz * inv * speed * dt;
+    const step = speed * dt;
+    const sx = this.feet.x;
+    const sz = this.feet.z;
+    this.feet.x += dx * inv * step;
+    ctx.collision.resolve(this.feet, BOT_RADIUS, BOT_HEIGHT);
+    this.feet.z += dz * inv * step;
     this.feet.y = ctx.groundAt(this.feet.x, this.feet.z);
     ctx.collision.resolve(this.feet, BOT_RADIUS, BOT_HEIGHT);
+    this.blocked = step > 1e-5 && Math.hypot(this.feet.x - sx, this.feet.z - sz) < step * 0.3;
     return true;
   }
 
