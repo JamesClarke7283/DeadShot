@@ -524,9 +524,12 @@ export class Game {
         m.isCounterUAV(p.team),
       );
 
-      // Killfeed.
+      // Killfeed. Player kills surge the music briefly (decays on its own).
+      const playerName = m.scoreboard.get(p.id).name;
       while (this.killfeedShown < m.killfeed.length) {
-        this.hud.addKill(m.killfeed[this.killfeedShown++]);
+        const ev = m.killfeed[this.killfeedShown++];
+        this.hud.addKill(ev);
+        if (ev.killer === playerName && ev.victim !== playerName) this.music.pulse();
       }
 
       // Damage indicator.
