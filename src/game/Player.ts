@@ -24,6 +24,21 @@ const HEIGHT = 1.8;
 const REGEN_DELAY = 5;
 const REGEN_RATE = 35; // hp/sec
 
+// Stances. Shift steps down (stand → crouch → prone; hold to go all the way),
+// Space steps back up. Eye height doubles as the head-hitbox centre and body
+// height feeds the analytic body sphere, so going low genuinely makes the
+// player smaller and breaks enemy line of sight.
+export type Stance = "stand" | "crouch" | "prone";
+
+const STANCES: Record<Stance, { eye: number; body: number; height: number; speed: number }> = {
+  stand: { eye: EYE_HEIGHT, body: 1.0, height: HEIGHT, speed: 1 },
+  crouch: { eye: 1.0, body: 0.65, height: 1.2, speed: 0.5 },
+  prone: { eye: 0.45, body: 0.35, height: 0.6, speed: 0.22 },
+};
+
+const STANCE_ORDER: Stance[] = ["prone", "crouch", "stand"];
+const PRONE_HOLD = 0.45; // holding the lower key this long steps down again
+
 export interface PlayerContext {
   world: WorldQuery;
   vfx: VFXSink;
@@ -54,6 +69,14 @@ export class Player implements Actor {
   }
   lastDamage?: DamageInfo;
   private deathTimer = 0;
+
+  // Stance state. `eyeH` is the smoothed camera/head height so stance changes
+  // glide instead of snapping. Shift's role is decided at press time: pushing
+  // forward while standing keeps it as sprint, otherwise it lowers the stance.
+  stance: Stance = "stand";
+  private eyeH = EYE_HEIGHT;
+  private shiftRole: "sprint" | "stance" | null = null;
+  private lowerHold = 0;
 
   private viewmodel: WeaponViewmodel;
   private camoColor: number;
@@ -187,10 +210,11 @@ export class Player implements Actor {
 
   // ---- Actor / DamageTarget ----
   position(out: THREE.Vector3): THREE.Vector3 {
-    return out.copy(this.feet).setY(this.feet.y + 1.0);
+    return out.copy(this.feet).setY(this.feet.y + STANCES[this.stance].body);
   }
   eyePosition(out: THREE.Vector3): THREE.Vector3 {
-    return out.copy(this.feet).setY(this.feet.y + EYE_HEIGHT);
+    // Tracks the smoothed camera height, so the head hitbox follows the dip.
+    return out.copy(this.feet).setY(this.feet.y + this.eyeH);
   }
   isHead(): boolean {
     return false; // MatchWorld reports headshots analytically
@@ -226,8 +250,18 @@ export class Player implements Actor {
     this.alive = true;
     this.health = this.maxHealth;
     this.deathTimer = 0;
+    this.stance = "stand";
+    this.eyeH = EYE_HEIGHT;
+    this.shiftRole = null;
     this.camera.perspective.position.set(this.feet.x, this.feet.y + EYE_HEIGHT, this.feet.z);
     void yaw;
+  }
+
+  /** Step the stance by dir (-1 lower, +1 higher), clamped prone..stand. */
+  private stepStance(dir: number): void {
+    const i = STANCE_ORDER.indexOf(this.stance);
+    const next = STANCE_ORDER[Math.max(0, Math.min(STANCE_ORDER.length - 1, i + dir))];
+    this.stance = next;
   }
 
   update(dt: number, ctx: PlayerContext): void {
@@ -264,10 +298,41 @@ export class Player implements Actor {
     this.weapon.update(dt, this.aim, ctx.world, ctx.vfx);
     this.viewmodel.update(dt);
 
-    // Movement.
-    const speed = (this.input.isDown("sprint") ? 7.5 : 5) * (this.weapon.stats.mobility / 80);
     const fb = this.input.axis("back", "forward");
     const lr = this.input.axis("left", "right");
+
+    // Stance. Shift picks its role on the press edge: moving forward upright
+    // means sprint (unchanged feel); otherwise it lowers the stance — and
+    // holding it keeps going down (crouch, then all the way to prone).
+    // Ctrl/C always lower. Space steps back up (prone → crouch → stand).
+    if (this.input.wasPressed("sprint")) {
+      this.shiftRole = fb > 0 && this.stance === "stand" ? "sprint" : "stance";
+      if (this.shiftRole === "stance") {
+        this.stepStance(-1);
+        this.lowerHold = 0;
+      }
+    }
+    if (!this.input.isDown("sprint") && this.shiftRole !== null) this.shiftRole = null;
+    if (this.input.wasPressed("crouch")) {
+      this.stepStance(-1);
+      this.lowerHold = 0;
+    }
+    const lowering = this.input.isDown("crouch") ||
+      (this.input.isDown("sprint") && this.shiftRole === "stance");
+    if (lowering && this.stance !== "prone") {
+      this.lowerHold += dt;
+      if (this.lowerHold >= PRONE_HOLD) {
+        this.stepStance(-1);
+        this.lowerHold = 0;
+      }
+    }
+    if (this.input.wasPressed("jump")) this.stepStance(1);
+
+    // Movement: sprint only upright; crouch/prone move at their own pace.
+    const stance = STANCES[this.stance];
+    const sprinting = this.stance === "stand" && this.shiftRole === "sprint" &&
+      this.input.isDown("sprint");
+    const speed = (sprinting ? 7.5 : 5) * stance.speed * (this.weapon.stats.mobility / 80);
     if (fb !== 0 || lr !== 0) {
       this.camera.getForward(this.fwd);
       const fx = this.fwd.x, fz = this.fwd.z;
@@ -276,8 +341,11 @@ export class Player implements Actor {
       this.feet.z += (fz * fb + rz * lr) * speed * dt;
     }
     this.feet.y = ctx.groundAt(this.feet.x, this.feet.z);
-    ctx.collision.resolve(this.feet, RADIUS, HEIGHT);
-    this.camera.perspective.position.set(this.feet.x, this.feet.y + EYE_HEIGHT, this.feet.z);
+    ctx.collision.resolve(this.feet, RADIUS, stance.height);
+
+    // Glide the camera (and head hitbox) toward the stance's eye height.
+    this.eyeH += (stance.eye - this.eyeH) * Math.min(1, dt * 10);
+    this.camera.perspective.position.set(this.feet.x, this.feet.y + this.eyeH, this.feet.z);
     this.object3d.position.copy(this.feet);
   }
 
