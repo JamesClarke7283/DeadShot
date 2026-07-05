@@ -119,6 +119,44 @@ export class ClassEditor {
   private lastFrame = 0;
   private spin = 0;
   private running = false;
+  private keyScrollAttached = false;
+
+  // Keyboard scrolling. The global Input handler swallows the arrow keys
+  // (preventDefault), and a bare <div> scroll container isn't focusable, so
+  // native arrow/page scrolling never reaches this panel. Drive scrollTop here
+  // instead, but only while the editor is open (attached in show/hide).
+  private readonly onKeyScroll = (e: KeyboardEvent): void => {
+    const panel = this.panel;
+    if (!panel || panel.style.display === "none") return;
+    // Leave the arrow keys to a focused form control (caret / cycling options).
+    const tag = document.activeElement?.tagName;
+    if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+    const line = 48;
+    const page = Math.max(panel.clientHeight - 60, line);
+    switch (e.code) {
+      case "ArrowDown":
+        panel.scrollTop += line;
+        break;
+      case "ArrowUp":
+        panel.scrollTop -= line;
+        break;
+      case "PageDown":
+        panel.scrollTop += page;
+        break;
+      case "PageUp":
+        panel.scrollTop -= page;
+        break;
+      case "Home":
+        panel.scrollTop = 0;
+        break;
+      case "End":
+        panel.scrollTop = panel.scrollHeight;
+        break;
+      default:
+        return;
+    }
+    e.preventDefault();
+  };
 
   constructor(root: HTMLElement, storage: Storage, opts: { onBack: () => void }) {
     this.root = root;
@@ -134,15 +172,30 @@ export class ClassEditor {
     this.panel!.style.display = "flex";
     this.refreshAll();
     this.startLoop();
+    this.attachKeyScroll();
   }
 
   hide(): void {
     this.stopLoop();
+    this.detachKeyScroll();
     if (this.panel) this.panel.style.display = "none";
+  }
+
+  private attachKeyScroll(): void {
+    if (this.keyScrollAttached) return;
+    globalThis.addEventListener("keydown", this.onKeyScroll as EventListener);
+    this.keyScrollAttached = true;
+  }
+
+  private detachKeyScroll(): void {
+    if (!this.keyScrollAttached) return;
+    globalThis.removeEventListener("keydown", this.onKeyScroll as EventListener);
+    this.keyScrollAttached = false;
   }
 
   dispose(): void {
     this.stopLoop();
+    this.detachKeyScroll();
     this.viewmodel?.dispose();
     this.viewmodel = undefined;
     this.lighting?.dispose();
@@ -202,10 +255,17 @@ export class ClassEditor {
     });
     this.panel = panel;
 
-    // Header row.
+    // Header row. flexShrink 0 keeps WebKit (the desktop webview) from
+    // collapsing panel children to fit — which would zero out the scroll range
+    // and make the lower sections unreachable.
     const header = el("div", {
       parent: panel,
-      style: { display: "flex", alignItems: "center", justifyContent: "space-between" },
+      style: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        flexShrink: "0",
+      },
     });
     el("h1", {
       parent: header,
@@ -231,7 +291,15 @@ export class ClassEditor {
     const body = el("div", {
       parent: panel,
       attrs: { "data-ce-body": "1" },
-      style: { display: "flex", gap: "24px", alignItems: "flex-start", flexWrap: "wrap" },
+      style: {
+        display: "flex",
+        gap: "24px",
+        alignItems: "flex-start",
+        flexWrap: "wrap",
+        // Critical: without this WebKit shrinks the tall body to the viewport,
+        // collapsing the panel's scroll range so the bottom can't be reached.
+        flexShrink: "0",
+      },
     });
     this.body = body;
 
@@ -333,7 +401,7 @@ export class ClassEditor {
   private buildSlotTabs(parent: HTMLElement): void {
     const row = el("div", {
       parent,
-      style: { display: "flex", gap: "6px", flexWrap: "wrap" },
+      style: { display: "flex", gap: "6px", flexWrap: "wrap", flexShrink: "0" },
     });
     this.slotTabs = [];
     for (let i = 0; i < CLASS_SLOTS; i++) {
