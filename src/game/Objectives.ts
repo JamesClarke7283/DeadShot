@@ -7,7 +7,7 @@
 import * as THREE from "../three.ts";
 import { createToonMaterial } from "../render/ToonMaterial.ts";
 import { addOutline } from "../render/OutlinePass.ts";
-import type { Actor } from "../characters/Bot.ts";
+import type { Actor, BotGoal } from "../characters/Bot.ts";
 import type { TeamId } from "../core/types.ts";
 import type { WinResult } from "./Mode.ts";
 
@@ -38,6 +38,8 @@ export interface Objective {
   update(dt: number, ctx: ObjectiveCtx): void;
   hud(): ObjectiveHud;
   isOver(elapsed: number, timeLimit: number): WinResult;
+  /** Where a bot on this actor's team should be playing the objective. */
+  goalFor(actor: Actor): BotGoal | null;
   dispose(): void;
 }
 
@@ -167,6 +169,27 @@ export class DominationObjective implements Objective {
     }
   }
 
+  /**
+   * Split the team across the map: bots spread over every point not already
+   * theirs (deterministically, so squads don't conga-line onto one point),
+   * while roughly a third stay behind to hold captured ground. The loiter
+   * radius sits inside the capture disc so "being there" captures. Teams get
+   * alternating actor ids, so rank = id/2 varies within one team where raw
+   * id parity would not.
+   */
+  goalFor(actor: Actor): BotGoal | null {
+    if (actor.team !== "blue" && actor.team !== "red") return null;
+    const rank = Math.floor(Math.abs(actor.id) / 2);
+    const owned = this.points.filter((p) => p.owner === actor.team);
+    const wanted = this.points.filter((p) => p.owner !== actor.team);
+    if (wanted.length === 0 || (owned.length > 0 && rank % 3 === 0)) {
+      const p = owned[rank % owned.length];
+      return { x: p.x, z: p.z, radius: DOM_RADIUS * 0.8, kind: "defend" };
+    }
+    const p = wanted[rank % wanted.length];
+    return { x: p.x, z: p.z, radius: DOM_RADIUS * 0.6, kind: "attack" };
+  }
+
   hud(): ObjectiveHud {
     return {
       kind: "dom",
@@ -285,6 +308,37 @@ export class CaptureTheFlagObjective implements Objective {
     flag.status = "home";
     flag.carrier = undefined;
     flag.pos.copy(flag.home);
+  }
+
+  /**
+   * Two thirds of the team raid, a third defends (deterministic rank = id/2,
+   * which varies within a team where raw id parity would not). Overrides in
+   * priority order: a carrier sprints the flag home; defenders return our
+   * dropped flag or chase its thief. An attacker whose teammate has the enemy
+   * flag falls in as escort (the goal tracks the carrier's position).
+   */
+  goalFor(actor: Actor): BotGoal | null {
+    if (actor.team !== "blue" && actor.team !== "red") return null;
+    const own = this.flags.find((f) => f.team === actor.team);
+    const enemy = this.flags.find((f) => f.team !== actor.team);
+    if (!own || !enemy) return null;
+
+    if (enemy.status === "carried" && enemy.carrier === actor.id) {
+      // Capture needs our own flag home, but heading home is right regardless.
+      return { x: own.home.x, z: own.home.z, radius: 1.2, kind: "carry" };
+    }
+    const defender = Math.floor(Math.abs(actor.id) / 2) % 3 === 0;
+    if (defender) {
+      if (own.status === "dropped") {
+        return { x: own.pos.x, z: own.pos.z, radius: 1.2, kind: "return" };
+      }
+      if (own.status === "carried") {
+        return { x: own.pos.x, z: own.pos.z, radius: 2.5, kind: "chase" };
+      }
+      return { x: own.home.x, z: own.home.z, radius: 7, kind: "defend" };
+    }
+    const escorting = enemy.status === "carried";
+    return { x: enemy.pos.x, z: enemy.pos.z, radius: escorting ? 4 : 1.2, kind: "attack" };
   }
 
   hud(): ObjectiveHud {

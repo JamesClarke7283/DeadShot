@@ -424,6 +424,7 @@ export class Match {
       actors: this.actorList,
       groundAt: (x, z) => this.map.groundAt(x, z),
       bounds: this.map.bounds,
+      objectiveGoal: (a) => this.objective?.goalFor(a) ?? null,
     };
     for (const bot of this.bots) bot.update(dt, ctx);
     // Remote players/bots are driven by the network, not simulated locally.

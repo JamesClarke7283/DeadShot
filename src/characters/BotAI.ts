@@ -160,9 +160,25 @@ export class BotAI {
     bot.firing = wantFire;
     if (wantFire) this.suppressTimer = 0.3;
 
-    // Movement: close the gap, retreat if hurt, otherwise hold + slight strafe.
+    // Movement: a flag carrier never stops to fight — it keeps sprinting home
+    // (firing on the move). Otherwise retreat if hurt; if an objective goal is
+    // pending, keep pushing toward it while trading fire — standing to duel at
+    // long range gridlocks the whole match into cross-map plinking standoffs.
+    // Only without a goal (or once on station) fall back to gap-closing.
     bot.moving = false;
-    if (bot.health <= RETREAT_HEALTH) {
+    const goal = ctx.objectiveGoal?.(bot);
+    const onStation = goal
+      ? (bot.feet.x - goal.x) ** 2 + (bot.feet.z - goal.z) ** 2 <= goal.radius * goal.radius
+      : false;
+    if (goal?.kind === "carry") {
+      // Carriers get a small sprint edge — without it the long run home
+      // through the enemy half almost never survives.
+      const dest = new THREE.Vector3(goal.x, 0, goal.z);
+      bot.moving = bot.stepToward(dest, bot.moveSpeed() * 1.15, dt, ctx);
+    } else if (goal && !onStation && bot.health > RETREAT_HEALTH) {
+      const dest = new THREE.Vector3(goal.x, 0, goal.z);
+      bot.moving = bot.stepToward(dest, bot.moveSpeed() * 0.9, dt, ctx);
+    } else if (bot.health <= RETREAT_HEALTH) {
       _away.set(bot.feet.x - _tgtEye.x, 0, bot.feet.z - _tgtEye.z).normalize();
       const dest = new THREE.Vector3(bot.feet.x + _away.x * 4, 0, bot.feet.z + _away.z * 4);
       bot.moving = bot.stepToward(dest, bot.moveSpeed(), dt, ctx);
@@ -179,12 +195,29 @@ export class BotAI {
     bot.firing = false;
     bot.weapon.setTrigger(false);
 
+    const goal = ctx.objectiveGoal?.(bot) ?? null;
     if (bot.path.length === 0 || bot.pathIndex >= bot.path.length || this.repathTimer <= 0) {
-      this.repathTimer = 2 + Math.random() * 2;
-      const gx = ctx.bounds.minX + Math.random() * (ctx.bounds.maxX - ctx.bounds.minX);
-      const gz = ctx.bounds.minZ + Math.random() * (ctx.bounds.maxZ - ctx.bounds.minZ);
-      const goal = new THREE.Vector3(gx, ctx.groundAt(gx, gz), gz);
-      bot.path = ctx.navigator.findPath(bot.feet, goal);
+      let gx: number;
+      let gz: number;
+      if (goal) {
+        // Objective modes: head for the goal; repath quickly because flags (and
+        // their carriers) move. Once on station, loiter at scattered spots
+        // inside the radius so a squad spreads out instead of stacking.
+        this.repathTimer = 1 + Math.random();
+        const dx = bot.feet.x - goal.x;
+        const dz = bot.feet.z - goal.z;
+        const onStation = dx * dx + dz * dz <= goal.radius * goal.radius;
+        const ang = Math.random() * Math.PI * 2;
+        const r = goal.radius * (onStation ? Math.random() : Math.random() * 0.5);
+        gx = goal.x + Math.cos(ang) * r;
+        gz = goal.z + Math.sin(ang) * r;
+      } else {
+        this.repathTimer = 2 + Math.random() * 2;
+        gx = ctx.bounds.minX + Math.random() * (ctx.bounds.maxX - ctx.bounds.minX);
+        gz = ctx.bounds.minZ + Math.random() * (ctx.bounds.maxZ - ctx.bounds.minZ);
+      }
+      const dest = new THREE.Vector3(gx, ctx.groundAt(gx, gz), gz);
+      bot.path = ctx.navigator.findPath(bot.feet, dest);
       bot.pathIndex = 0;
     }
 
@@ -196,7 +229,9 @@ export class BotAI {
         bot.yaw = Math.atan2(_dir.x, _dir.z);
         bot.aimDir.copy(_dir);
       }
-      bot.moving = bot.stepToward(node, bot.moveSpeed() * 0.8, dt, ctx);
+      // Flag carriers sprint (with the carry edge); others at patrol pace.
+      const speed = bot.moveSpeed() * (goal?.kind === "carry" ? 1.15 : 0.8);
+      bot.moving = bot.stepToward(node, speed, dt, ctx);
       if (!bot.moving) bot.pathIndex++;
     } else {
       bot.moving = false;

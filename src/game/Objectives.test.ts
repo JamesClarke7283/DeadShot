@@ -73,6 +73,73 @@ Deno.test("CTF: grab the enemy flag, return it home to score", () => {
   obj.dispose();
 });
 
+// Teams are dealt alternating actor ids, so bots on one team share parity;
+// goalFor spreads by rank = floor(id / 2), which does vary within a team.
+Deno.test("Domination: bot goals spread the team across uncaptured points", () => {
+  const obj = new DominationObjective(BOUNDS, ground);
+  // All three points are neutral: one team's bots (ids 2/4/6) fan out.
+  const goals = [2, 4, 6].map((id) => obj.goalFor(new MockActor(id, "blue", 0, 0))!);
+  for (const g of goals) assertEquals(g.kind, "attack");
+  const spots = new Set(goals.map((g) => `${g.x},${g.z}`));
+  assertEquals(spots.size, 3, "three bots cover three different points");
+  obj.dispose();
+});
+
+Deno.test("Domination: with ground held, some bots defend and FFA gets no goal", () => {
+  const obj = new DominationObjective(BOUNDS, ground);
+  const blue = new MockActor(1, "blue", 0, 0); // capture centre point B
+  const c = ctx([blue]);
+  for (let i = 0; i < 30; i++) obj.update(0.1, c);
+  assertEquals(obj.hud().points![1].owner, "blue");
+  // rank % 3 === 0 stays back on the held point; others push the remaining two.
+  const defender = obj.goalFor(new MockActor(6, "blue", 0, 0))!; // rank 3
+  assertEquals(defender.kind, "defend");
+  assertEquals(`${defender.x},${defender.z}`, "0,0", "defends the held centre point");
+  assertEquals(obj.goalFor(new MockActor(2, "blue", 0, 0))!.kind, "attack"); // rank 1
+  assertEquals(obj.goalFor(new MockActor(1, "ffa", 0, 0)), null);
+  obj.dispose();
+});
+
+Deno.test("CTF: bot goals — attackers raid, defenders guard, carriers run home", () => {
+  const obj = new CaptureTheFlagObjective(BOUNDS, ground);
+  // rank % 3 != 0 = attacker -> enemy (red) flag; rank % 3 == 0 = defender.
+  const attack = obj.goalFor(new MockActor(2, "blue", 0, 0))!; // rank 1
+  assertEquals(attack.kind, "attack");
+  assertEquals(attack.z, 32, "attacker heads for the red flag");
+  const defend = obj.goalFor(new MockActor(6, "blue", 0, 0))!; // rank 3
+  assertEquals(defend.kind, "defend");
+  assertEquals(defend.z, -32, "defender holds the blue base");
+
+  // Grab the red flag: the carrier's goal flips to carrying it home, and a
+  // fellow attacker's goal follows the carrier (escort).
+  const carrier = new MockActor(1, "blue", 0, 32);
+  obj.update(0.1, ctx([carrier]));
+  const carry = obj.goalFor(carrier)!;
+  assertEquals(carry.kind, "carry");
+  assertEquals(carry.z, -32, "carrier runs for the blue base");
+  const escort = obj.goalFor(new MockActor(2, "blue", 0, 0))!; // rank 1: attacker
+  assertEquals(escort.kind, "attack");
+  assertEquals(escort.z, 32, "escort converges on the carrier's position");
+  obj.dispose();
+});
+
+Deno.test("CTF: bot goals — defenders chase a stolen flag and return a dropped one", () => {
+  const obj = new CaptureTheFlagObjective(BOUNDS, ground);
+  const thief = new MockActor(9, "red", 0, -32); // red steals the blue flag
+  obj.update(0.1, ctx([thief]));
+  const blueDef = new MockActor(6, "blue", 0, 0); // rank 3: defender
+  assertEquals(obj.goalFor(blueDef)!.kind, "chase");
+
+  thief.at(0, 0);
+  obj.update(0.1, ctx([thief]));
+  thief.alive = false; // thief down mid-field -> flag drops there
+  obj.update(0.1, ctx([thief]));
+  const ret = obj.goalFor(blueDef)!;
+  assertEquals(ret.kind, "return");
+  assertEquals(ret.z, 0, "defender heads to the dropped flag, not the base");
+  obj.dispose();
+});
+
 Deno.test("CTF: a downed carrier drops the flag; the owner can return it", () => {
   const obj = new CaptureTheFlagObjective(BOUNDS, ground);
   const blue = new MockActor(1, "blue", 0, 32); // grab red flag

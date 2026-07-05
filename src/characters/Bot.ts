@@ -27,6 +27,22 @@ export interface Actor extends DamageTarget {
   eyePosition(out: THREE.Vector3): THREE.Vector3;
 }
 
+/** An objective-mode destination for a bot (Domination point, CTF flag, …). */
+export interface BotGoal {
+  x: number;
+  z: number;
+  /** "On station" within this range — loiter inside it instead of stacking. */
+  radius: number;
+  /**
+   * attack: take a point / grab the enemy flag (escorts a friendly carrier too)
+   * defend: hold a held point or the home flag
+   * return: touch our dropped flag to send it home
+   * chase:  hunt the enemy carrying our flag
+   * carry:  we hold the enemy flag — sprint it home, even under fire
+   */
+  kind: "attack" | "defend" | "return" | "chase" | "carry";
+}
+
 /** Everything a Bot needs each frame. */
 export interface BotContext {
   world: WorldQuery;
@@ -39,6 +55,8 @@ export interface BotContext {
   onKill?(killer: Actor | undefined, victim: Actor, headshot: boolean, weaponId?: string): void;
   /** Wander bounds for patrol. */
   bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
+  /** Objective-mode goal for this bot (Domination / CTF), if any. */
+  objectiveGoal?(bot: Actor): BotGoal | null;
 }
 
 export interface BotConfig {
