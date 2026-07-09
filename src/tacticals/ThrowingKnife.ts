@@ -11,7 +11,7 @@ import { addOutline } from "../render/OutlinePass.ts";
 import type { DamageTarget } from "../weapons/combat.ts";
 import type { TeamId } from "../core/types.ts";
 
-const DAMAGE = 150;
+const DAMAGE = 1000; // instant kill
 const STUCK_LIFETIME = 6; // seconds the recoverable knife persists
 
 export class ThrowingKnife extends Throwable {

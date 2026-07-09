@@ -155,7 +155,7 @@ export class WeaponViewmodel {
       if (p >= 1) {
         this.meleeing = false;
         this.knifeMesh.visible = false;
-        this.gun.visible = !this.isKnifeTier ? true : true; // restore gun
+        this.gun.visible = true; // restore gun
       } else {
         // Start at the left (-0.32), sweep right (+0.32). Blade horizontal,
         // tilted in roll, sweeping across the lower-centre of the view.
