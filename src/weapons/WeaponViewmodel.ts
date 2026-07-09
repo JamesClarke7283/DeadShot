@@ -30,8 +30,12 @@ export class WeaponViewmodel {
   private reloadDur = 0;
   private reloading = false;
   private meleeT = 0;
-  private meleeDur = 0.32;
+  private meleeDur = 0.3;
   private meleeing = false;
+  /** Separate knife blade shown only during the melee slash (left-to-right). */
+  private knifeMesh: THREE.Group;
+  /** Whether the held weapon is the knife tier (suppresses muzzle/ADS). */
+  private isKnifeTier = false;
 
   constructor(private camera: THREE.PerspectiveCamera) {
     this.camoMat = createToonMaterial({ color: 0x2b2f36 });
@@ -39,6 +43,9 @@ export class WeaponViewmodel {
     this.gun.add(this.muzzle);
     this.root.position.copy(HIP_POS);
     this.root.renderOrder = 10;
+    this.knifeMesh = buildKnifeBlade();
+    this.knifeMesh.visible = false;
+    this.root.add(this.knifeMesh);
     camera.add(this.root);
   }
 
@@ -47,6 +54,7 @@ export class WeaponViewmodel {
     camoColor = 0x2b2f36,
     attachments: ReadonlyArray<Attachment | string> = [],
   ): void {
+    this.isKnifeTier = def.id === "knife";
     // Rebuild the gun geometry for this category. Dispose the previous meshes'
     // geometry/materials first — clear() only detaches, so without this every
     // weapon swap / attachment change / editor preview leaks GPU resources.
@@ -54,9 +62,15 @@ export class WeaponViewmodel {
     this.gun.clear();
     this.camoMat.dispose();
     this.camoMat = createToonMaterial({ color: camoColor });
-    buildGun(this.gun, def.category, this.camoMat);
-    // Mount the equipped attachments (optics, barrel, grip, mag, stock).
-    this.gun.add(buildAttachmentMeshes(def.category, attachments));
+    if (this.isKnifeTier) {
+      // Knife tier: show a held knife blade instead of a gun.
+      this.gun.add(buildKnifeBlade());
+      this.gun.visible = true;
+    } else {
+      buildGun(this.gun, def.category, this.camoMat);
+      // Mount the equipped attachments (optics, barrel, grip, mag, stock).
+      this.gun.add(buildAttachmentMeshes(def.category, attachments));
+    }
     this.muzzle = new THREE.Object3D();
     this.muzzle.position.copy(gunMuzzleOffset(def.category));
     this.gun.add(this.muzzle);
@@ -79,10 +93,12 @@ export class WeaponViewmodel {
     this.kick = Math.min(1, this.kick + 0.5);
   }
 
-  /** Trigger a melee knife slash animation (a right-to-left swipe arc). */
+  /** Trigger a melee knife slash animation: a blade appears from the left and
+   * swipes to the right across the view. */
   meleeSlash(): void {
     this.meleeing = true;
     this.meleeT = 0;
+    this.knifeMesh.visible = true;
   }
 
   startReload(duration: number): void {
@@ -105,9 +121,14 @@ export class WeaponViewmodel {
   }
 
   update(dt: number): void {
-    // ADS lerp
-    this.ads = approach(this.ads, this.adsTarget, this.adsSpeed * dt);
-    this.root.position.lerpVectors(HIP_POS, ADS_POS, this.ads);
+    // ADS lerp (knife tier has no ADS).
+    if (this.isKnifeTier) {
+      this.ads = 0;
+      this.root.position.copy(HIP_POS);
+    } else {
+      this.ads = approach(this.ads, this.adsTarget, this.adsSpeed * dt);
+      this.root.position.lerpVectors(HIP_POS, ADS_POS, this.ads);
+    }
 
     // Recoil kick recovery
     this.kick = Math.max(0, this.kick - dt * 6);
@@ -126,31 +147,37 @@ export class WeaponViewmodel {
       if (this.reloadT >= this.reloadDur) this.reloading = false;
     }
 
-    // Melee slash: a quick right-to-left swipe. The gun drops slightly, swings
-    // across the view (yaw), and tilts (roll), then snaps back. Suppresses the
-    // normal gun position while active so the knife motion reads clearly.
-    let slashX = 0;
-    let slashY = 0;
-    let slashYaw = 0;
-    let slashRoll = 0;
+    // Melee slash: a separate knife blade sweeps left-to-right across the view.
+    // The held gun is hidden during the slash so the knife reads clearly.
     if (this.meleeing) {
       this.meleeT += dt;
       const p = Math.min(1, this.meleeT / this.meleeDur);
       if (p >= 1) {
         this.meleeing = false;
+        this.knifeMesh.visible = false;
+        this.gun.visible = !this.isKnifeTier ? true : true; // restore gun
       } else {
-        // 0..1 arc: start right (+0.18, yaw -0.9), sweep left (-0.12, yaw +0.7).
-        const arc = Math.sin(p * Math.PI); // 0..1..0
-        const swipe = p; // monotonic forward sweep
-        slashX = 0.18 - 0.30 * swipe; // right -> left
-        slashY = -0.05 * arc; // slight dip mid-swing
-        slashYaw = -0.9 + 1.6 * swipe; // yaw right -> left
-        slashRoll = -0.5 * arc; // roll tilt at the apex
+        // Start at the left (-0.32), sweep right (+0.32). Blade horizontal,
+        // tilted in roll, sweeping across the lower-centre of the view.
+        const swipe = p; // monotonic left -> right
+        const arc = Math.sin(p * Math.PI); // 0..1..0 lift
+        this.knifeMesh.position.set(-0.32 + 0.64 * swipe, -0.18 - 0.06 * arc, -0.5);
+        // Yaw rotates from facing-left to facing-right; roll tilts at apex.
+        this.knifeMesh.rotation.set(
+          -0.3 + 0.6 * arc, // pitch: dip forward then back
+          -1.0 + 2.0 * swipe, // yaw: left -> right
+          0.8 - 1.6 * arc, // roll: tilted at apex
+        );
+        this.gun.visible = false; // hide gun while the knife swipes
       }
+    } else {
+      this.gun.visible = true;
     }
 
-    this.gun.position.set(slashX, dipY + slashY + kz, 0);
-    this.gun.rotation.set(kpitch + dipRot, slashYaw, slashRoll);
+    if (!this.meleeing) {
+      this.gun.position.set(0, dipY + kz, 0);
+      this.gun.rotation.set(kpitch + dipRot, 0, 0);
+    }
   }
 
   dispose(): void {
@@ -258,4 +285,29 @@ function buildGun(group: THREE.Group, cat: WeaponCategory, camo: THREE.MeshToonM
   const back = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.1), skin);
   back.position.set(0.02, -0.08, -len * 0.15);
   group.add(front, back);
+}
+
+/** Build a cartoon knife blade (cone blade + cylindrical handle) with outline. */
+function buildKnifeBlade(): THREE.Group {
+  const g = new THREE.Group();
+  const blade = new THREE.Mesh(
+    new THREE.ConeGeometry(0.04, 0.34, 6),
+    createToonMaterial({ color: 0xdfe5ec }),
+  );
+  blade.rotation.x = -Math.PI / 2; // point along +Z (forward)
+  blade.position.z = 0.17;
+  addOutline(blade, { thickness: 0.014 });
+  const handle = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.03, 0.03, 0.14, 8),
+    createToonMaterial({ color: 0x2a2f36 }),
+  );
+  handle.rotation.x = Math.PI / 2;
+  handle.position.z = -0.07;
+  addOutline(handle, { thickness: 0.014 });
+  g.add(blade, handle);
+  g.traverse((o) => {
+    o.castShadow = false;
+    o.receiveShadow = false;
+  });
+  return g;
 }

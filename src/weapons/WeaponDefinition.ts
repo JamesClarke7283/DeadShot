@@ -407,6 +407,26 @@ export const WEAPONS: readonly WeaponDef[] = [
     bulletVelocity: 45,
     rocket: { speed: 45, directDamage: 150, splashDamage: 120, splashRadius: 6 },
   },
+
+  // ---- Melee (Gun Game final tier; held as a knife, kills via the throwing
+  // knife lethal, not by firing — hence 0 damage / 1 round / no reserve). ----
+  {
+    id: "knife",
+    name: "Knife",
+    category: "pistol",
+    fireMode: "semi",
+    damage: 0,
+    headshotMultiplier: 1,
+    fireRate: 60,
+    magazine: 1,
+    reserve: 0,
+    reloadTime: 1,
+    adsTime: 0.2,
+    mobility: 100,
+    range: { near: 0, far: 0, minDamage: 0 },
+    recoil: recoil(0, 0, 0),
+    bulletVelocity: 0,
+  },
 ] as const;
 
 const BY_ID = new Map<string, WeaponDef>(WEAPONS.map((w) => [w.id, w]));

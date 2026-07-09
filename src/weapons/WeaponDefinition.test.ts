@@ -19,10 +19,10 @@ const REQUIRED_CATEGORIES = [
   "launcher",
 ];
 
-Deno.test("roster has all 18 weapons with unique ids", () => {
-  assertEquals(WEAPONS.length, 18);
+Deno.test("roster has all 19 weapons with unique ids", () => {
+  assertEquals(WEAPONS.length, 19);
   const ids = new Set(WEAPON_IDS);
-  assertEquals(ids.size, 18, "weapon ids must be unique");
+  assertEquals(ids.size, 19, "weapon ids must be unique");
 });
 
 Deno.test("every named weapon is present", () => {
@@ -69,7 +69,6 @@ Deno.test("every weapon has valid required stats", () => {
     assertGreater(w.adsTime, 0, `${w.id} adsTime`);
     assert(w.mobility > 0 && w.mobility <= 100, `${w.id} mobility in (0,100]`);
     assertGreater(w.headshotMultiplier, 0, `${w.id} headshotMultiplier`);
-    assertGreater(w.bulletVelocity, 0, `${w.id} bulletVelocity`);
     assert(w.recoil, `${w.id} recoil profile`);
     assert(w.range, `${w.id} range falloff`);
 
@@ -77,9 +76,10 @@ Deno.test("every weapon has valid required stats", () => {
       assert(w.rocket, `${w.id} launcher must have a rocket spec`);
       assertGreater(w.rocket!.splashRadius, 0, `${w.id} splashRadius`);
       assertGreater(w.rocket!.directDamage, 0, `${w.id} directDamage`);
-    } else {
-      // Non-launchers do bullet damage.
+    } else if (w.id !== "knife") {
+      // Non-launchers / non-melee do bullet damage.
       assertGreater(w.damage, 0, `${w.id} damage`);
+      assertGreater(w.bulletVelocity, 0, `${w.id} bulletVelocity`);
     }
 
     if (w.category === "shotgun") {

@@ -119,7 +119,7 @@ export interface MatchOptions {
 // A wide spread across every category (interleaved so cycling gives a varied
 // mix of enemy weapons each match). Launchers are left out of the bot pool.
 const MELEE_RANGE = 2.5;
-const MELEE_DAMAGE = 55;
+const MELEE_DAMAGE = 1000; // instant kill
 const BOT_WEAPONS = [
   "m4",
   "mp5",
@@ -433,8 +433,7 @@ export class Match {
     if (!gg || !this.player) return null;
     const tier = gg.tierOf(this.player.id);
     const weaponId = gg.weaponIdOf(this.player.id);
-    const name = weaponId === "knife" ? "Throwing Knife" : getWeapon(weaponId).name;
-    return { tier, maxTier: GUN_GAME_TIERS.length, weaponName: name };
+    return { tier, maxTier: GUN_GAME_TIERS.length, weaponName: getWeapon(weaponId).name };
   }
 
   private placeActor(a: Actor, pos: THREE.Vector3, yaw: number): void {
@@ -643,22 +642,16 @@ export class Match {
     if (up) this.equipTier(up.id, up.weaponId);
   }
 
-  /** Swap an actor's weapon to a Gun Game tier. "knife" arms the throwing-knife
-   * lethal for the player (and keeps their gun as-is, since the win is a throw). */
+  /** Swap an actor's weapon to a Gun Game tier. The "knife" tier equips the
+   * held knife (viewmodel blade) and arms the throwing-knife lethal to win. */
   private equipTier(actorId: number, weaponId: string): void {
-    if (weaponId === "knife") {
-      // Player-only final tier: re-arm the throwing knife lethal (full ammo).
-      if (this.player && actorId === this.player.id) {
-        this.opts.playerLethal = "knife";
-      }
-      return;
-    }
     const def = getWeapon(weaponId);
     if (this.player && actorId === this.player.id) {
       this.player.setWeaponClean(def);
+      if (weaponId === "knife") this.opts.playerLethal = "knife";
     } else {
       const bot = this.bots.find((b) => b.id === actorId);
-      if (bot) bot.setWeapon(def);
+      if (bot && weaponId !== "knife") bot.setWeapon(def);
     }
   }
 
