@@ -145,6 +145,19 @@ export class Player implements Actor {
     this.viewmodel.setWeapon(def, this.camoColor, this.attachments);
   }
 
+  /**
+   * Swap to a clean weapon with no attachments (used by Gun Game tier
+   * progression). Calls swapIn() so the swap has the raise animation.
+   */
+  setWeaponClean(def: WeaponDef): void {
+    const w = this.buildWeapon(def, []);
+    this.weapons = [w];
+    this.slotAttachments = [[]];
+    this.currentSlot = 0;
+    w.swapIn();
+    this.viewmodel.setWeapon(def, this.camoColor, []);
+  }
+
   /** Two-weapon loadout: primary in slot 0, secondary in slot 1. */
   setLoadout(
     primaryDef: WeaponDef,
@@ -206,6 +219,11 @@ export class Player implements Actor {
   /** Hide/show the first-person viewmodel (used by the killcam). */
   setViewmodelVisible(v: boolean): void {
     this.viewmodel.setVisible(v);
+  }
+
+  /** Play the first-person melee knife slash animation. */
+  meleeSlash(): void {
+    this.viewmodel.meleeSlash();
   }
 
   // ---- Actor / DamageTarget ----

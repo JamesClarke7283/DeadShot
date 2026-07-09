@@ -361,7 +361,7 @@ export class Match {
       this.gunGame = new GunGameTracker();
       if (this.player) {
         this.gunGame.register(this.player.id);
-        this.player.setWeapon(getWeapon(GUN_GAME_TIERS[0]));
+        this.player.setWeaponClean(getWeapon(GUN_GAME_TIERS[0]));
       }
       for (const b of this.bots) this.gunGame.register(b.id);
       this.opts.playerLethal = "knife";
@@ -406,6 +406,7 @@ export class Match {
     if (!this.player?.alive || !this.camera) return;
     if (this.meleeCooldown > 0) return;
     this.meleeCooldown = 0.8;
+    this.player.meleeSlash();
     const origin = this.player.eyePosition(new THREE.Vector3());
     const dir = this.camera.getLookDirection(new THREE.Vector3());
     const hit = this.world.raycast(origin, dir, MELEE_RANGE);
@@ -654,7 +655,7 @@ export class Match {
     }
     const def = getWeapon(weaponId);
     if (this.player && actorId === this.player.id) {
-      this.player.setWeapon(def);
+      this.player.setWeaponClean(def);
     } else {
       const bot = this.bots.find((b) => b.id === actorId);
       if (bot) bot.setWeapon(def);

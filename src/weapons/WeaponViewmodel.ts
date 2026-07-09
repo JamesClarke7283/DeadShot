@@ -29,6 +29,9 @@ export class WeaponViewmodel {
   private reloadT = 0;
   private reloadDur = 0;
   private reloading = false;
+  private meleeT = 0;
+  private meleeDur = 0.32;
+  private meleeing = false;
 
   constructor(private camera: THREE.PerspectiveCamera) {
     this.camoMat = createToonMaterial({ color: 0x2b2f36 });
@@ -76,6 +79,12 @@ export class WeaponViewmodel {
     this.kick = Math.min(1, this.kick + 0.5);
   }
 
+  /** Trigger a melee knife slash animation (a right-to-left swipe arc). */
+  meleeSlash(): void {
+    this.meleeing = true;
+    this.meleeT = 0;
+  }
+
   startReload(duration: number): void {
     this.reloading = true;
     this.reloadDur = Math.max(0.1, duration);
@@ -117,8 +126,31 @@ export class WeaponViewmodel {
       if (this.reloadT >= this.reloadDur) this.reloading = false;
     }
 
-    this.gun.position.set(0, dipY, kz);
-    this.gun.rotation.set(kpitch + dipRot, 0, 0);
+    // Melee slash: a quick right-to-left swipe. The gun drops slightly, swings
+    // across the view (yaw), and tilts (roll), then snaps back. Suppresses the
+    // normal gun position while active so the knife motion reads clearly.
+    let slashX = 0;
+    let slashY = 0;
+    let slashYaw = 0;
+    let slashRoll = 0;
+    if (this.meleeing) {
+      this.meleeT += dt;
+      const p = Math.min(1, this.meleeT / this.meleeDur);
+      if (p >= 1) {
+        this.meleeing = false;
+      } else {
+        // 0..1 arc: start right (+0.18, yaw -0.9), sweep left (-0.12, yaw +0.7).
+        const arc = Math.sin(p * Math.PI); // 0..1..0
+        const swipe = p; // monotonic forward sweep
+        slashX = 0.18 - 0.30 * swipe; // right -> left
+        slashY = -0.05 * arc; // slight dip mid-swing
+        slashYaw = -0.9 + 1.6 * swipe; // yaw right -> left
+        slashRoll = -0.5 * arc; // roll tilt at the apex
+      }
+    }
+
+    this.gun.position.set(slashX, dipY + slashY + kz, 0);
+    this.gun.rotation.set(kpitch + dipRot, slashYaw, slashRoll);
   }
 
   dispose(): void {
