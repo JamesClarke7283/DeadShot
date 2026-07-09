@@ -64,7 +64,7 @@ export class EquipmentManager {
   }
 
   private spawn(item: Throwable, params: ThrowParams): void {
-    item.throw(params.origin, params.direction, params.team, this.ctx);
+    item.throw(params.origin, params.direction, params.team, this.ctx, params.sourceId);
     this.items.push(item);
   }
 

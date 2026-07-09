@@ -32,6 +32,7 @@ import { TDM } from "../game/TDM.ts";
 import { FFA } from "../game/FFA.ts";
 import { DOMINATION } from "../game/Domination.ts";
 import { CTF } from "../game/CaptureTheFlag.ts";
+import { GUNGAME } from "../game/GunGame.ts";
 import type { ModeRules } from "../game/Mode.ts";
 import { getWeapon } from "../weapons/WeaponDefinition.ts";
 import { getCamo } from "../weapons/AttachmentDefinitions.ts";
@@ -46,6 +47,8 @@ function rulesFor(id: ModeId): ModeRules {
       return DOMINATION;
     case "ctf":
       return CTF;
+    case "gungame":
+      return GUNGAME;
     default:
       return TDM;
   }
@@ -499,6 +502,10 @@ export class Game {
       const next = lo.find((d) => d.cost > score) ?? null;
       this.hud.setStreakProgress(score, next?.name ?? null, next?.cost ?? null);
 
+      // Gun Game tier progress (replaces streak readout with the tier bar).
+      const gg = m.gunGameHud();
+      this.hud.setGunGameTier(gg ? gg.tier + 1 : null, gg?.maxTier ?? null, gg?.weaponName ?? null);
+
       // Right-side scorestreak tracker (a bar per loadout streak; earned shine).
       this.hud.setStreaks(
         lo.map((d) => ({
@@ -584,6 +591,9 @@ export class Game {
     // Throwables.
     if (this.input.wasPressed("lethal")) m.playerThrowLethal();
     if (this.input.wasPressed("tactical")) m.playerThrowTactical();
+
+    // Melee knife (K) — works in every mode.
+    if (this.input.wasPressed("melee")) m.playerMelee();
 
     // Music duck on low health.
     this.music.setDuck(p.alive && p.health < 35 ? 0.7 : 0);

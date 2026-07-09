@@ -219,7 +219,7 @@ export class RoomManager {
 function sanitizeSettings(s: LobbySettings): LobbySettings {
   return {
     mapId: String(s.mapId ?? DEFAULT_SETTINGS.mapId),
-    mode: (["tdm", "ffa", "dom", "ctf"] as const).includes(s.mode) ? s.mode : "tdm",
+    mode: (["tdm", "ffa", "dom", "ctf", "gungame"] as const).includes(s.mode) ? s.mode : "tdm",
     botCount: Math.max(0, Math.min(16, Math.floor(s.botCount ?? 0))),
     difficulty: ["recruit", "regular", "veteran"].includes(s.difficulty) ? s.difficulty : "regular",
     hardcore: !!s.hardcore,

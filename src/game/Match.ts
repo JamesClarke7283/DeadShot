@@ -27,8 +27,9 @@ import { MatchWorld } from "./MatchWorld.ts";
 import { Player } from "./Player.ts";
 import { Scoreboard } from "./Scoreboard.ts";
 import { Spawner } from "./Spawner.ts";
-import type { ModeId, ModeRules } from "./Mode.ts";
+import type { ModeId, ModeRules, WinResult } from "./Mode.ts";
 import { SCORE } from "./Mode.ts";
+import { GUN_GAME_TIERS, GunGameTracker } from "./GunGame.ts";
 import type { TeamId } from "../core/types.ts";
 import { ScorestreakManager } from "../streaks/ScorestreakManager.ts";
 import { getStreak, STREAKS } from "../streaks/streaks.ts";
@@ -117,6 +118,8 @@ export interface MatchOptions {
 
 // A wide spread across every category (interleaved so cycling gives a varied
 // mix of enemy weapons each match). Launchers are left out of the bot pool.
+const MELEE_RANGE = 2.5;
+const MELEE_DAMAGE = 55;
 const BOT_WEAPONS = [
   "m4",
   "mp5",
@@ -183,6 +186,10 @@ export class Match {
 
   // ---- Objective modes (Domination / CTF) ----
   private objective: Objective | null = null;
+
+  // ---- Gun Game ----
+  private gunGame: GunGameTracker | null = null;
+  private meleeCooldown = 0;
 
   // ---- Replay (killcam + best play) ----
   private readonly recorder = new ReplayRecorder(10, 30);
@@ -263,10 +270,14 @@ export class Match {
 
     // Bots: simulated locally only single-player or by the room host.
     if (!net || this.isHost) {
+      const gunGame = this.modeId === "gungame";
       for (let i = 0; i < this.opts.botCount; i++) {
         const team = net ? this.netTeamForIndex(i) : this.mode.assignTeam(slot++, total);
         const id = net ? Match.BOT_BASE + i : 1 + i;
-        const def = getWeapon(BOT_WEAPONS[i % BOT_WEAPONS.length]);
+        // Gun Game: everyone starts on the pistol (tier 0).
+        const def = gunGame
+          ? getWeapon(GUN_GAME_TIERS[0])
+          : getWeapon(BOT_WEAPONS[i % BOT_WEAPONS.length]);
         const bot = new Bot({
           id,
           team,
@@ -342,6 +353,19 @@ export class Match {
       },
     };
     this.equipment = new EquipmentManager(eqCtx);
+
+    // Gun Game: register every owned actor in the tracker at tier 0, force the
+    // player onto the pistol, and arm the throwing knife as the lethal so the
+    // final tier (a knife kill) is achievable.
+    if (this.modeId === "gungame") {
+      this.gunGame = new GunGameTracker();
+      if (this.player) {
+        this.gunGame.register(this.player.id);
+        this.player.setWeapon(getWeapon(GUN_GAME_TIERS[0]));
+      }
+      for (const b of this.bots) this.gunGame.register(b.id);
+      this.opts.playerLethal = "knife";
+    }
   }
 
   playerThrowTactical(): void {
@@ -350,7 +374,7 @@ export class Match {
     const dir = this.camera.getLookDirection(new THREE.Vector3());
     this.equipment.throwTactical(
       (this.opts.playerTactical ?? "flashbang") as TacticalId,
-      { origin, direction: dir, team: this.player.team },
+      { origin, direction: dir, team: this.player.team, sourceId: this.player.id },
     );
   }
 
@@ -364,8 +388,52 @@ export class Match {
     }
     const origin = this.player.eyePosition(new THREE.Vector3());
     const dir = this.camera.getLookDirection(new THREE.Vector3());
-    this.equipment.throwLethal(lethal, { origin, direction: dir, team: this.player.team });
+    this.equipment.throwLethal(lethal, {
+      origin,
+      direction: dir,
+      team: this.player.team,
+      sourceId: this.player.id,
+    });
     this.lastThrowG = this.elapsed;
+  }
+
+  /**
+   * Player melee knife (KeyK): a short-range forward hitscan that deals lethal
+   * damage to the first enemy hit. Usable in every mode. Cooldown ~0.8s. In Gun
+   * Game, a melee kill drops the victim one weapon tier (see applyGunGameDeath).
+   */
+  playerMelee(): void {
+    if (!this.player?.alive || !this.camera) return;
+    if (this.meleeCooldown > 0) return;
+    this.meleeCooldown = 0.8;
+    const origin = this.player.eyePosition(new THREE.Vector3());
+    const dir = this.camera.getLookDirection(new THREE.Vector3());
+    const hit = this.world.raycast(origin, dir, MELEE_RANGE);
+    if (hit) {
+      const target = hit.target;
+      if (
+        target && target.alive && (this.player.team === "ffa" || target.team !== this.player.team)
+      ) {
+        target.applyDamage({
+          amount: MELEE_DAMAGE,
+          headshot: false,
+          sourceTeam: this.player.team,
+          weaponId: "melee",
+          sourceId: this.player.id,
+        });
+      }
+      this.vfx.bulletImpact(hit.point, hit.normal, !!target);
+    }
+  }
+
+  /** Gun Game HUD state for the local player, or null outside Gun Game. */
+  gunGameHud(): { tier: number; maxTier: number; weaponName: string } | null {
+    const gg = this.gunGame;
+    if (!gg || !this.player) return null;
+    const tier = gg.tierOf(this.player.id);
+    const weaponId = gg.weaponIdOf(this.player.id);
+    const name = weaponId === "knife" ? "Throwing Knife" : getWeapon(weaponId).name;
+    return { tier, maxTier: GUN_GAME_TIERS.length, weaponName: name };
   }
 
   private placeActor(a: Actor, pos: THREE.Vector3, yaw: number): void {
@@ -401,6 +469,7 @@ export class Match {
     this.screen.update(dt);
     this.equipment.update(dt);
     this.map.update?.(dt, this.elapsed);
+    if (this.meleeCooldown > 0) this.meleeCooldown -= dt;
 
     if (this.state === "warmup") {
       this.warmupTimer -= dt;
@@ -461,14 +530,23 @@ export class Match {
       groundAt: (x, z) => this.map.groundAt(x, z),
       bounds: this.map.bounds,
     });
-    this.updateStreaks(dt);
+    if (this.modeId !== "gungame") this.updateStreaks(dt);
     this.recorder.record(this.elapsed, this.snapshotActors());
 
     // Win check (a nuke streak may have already ended the match above).
     if (this.state !== "live") return;
-    const win = this.objective
-      ? this.objective.isOver(this.elapsed, this.mode.timeLimit)
-      : this.mode.checkWin(this.scoreboard, this.elapsed);
+    let win: WinResult;
+    if (this.gunGame) {
+      // Gun Game: a knife kill on the final tier flags the winner in the tracker.
+      const winnerId = this.gunGame.winner;
+      win = winnerId !== undefined
+        ? { over: true, winner: winnerId, reason: "score" }
+        : this.mode.checkWin(this.scoreboard, this.elapsed);
+    } else {
+      win = this.objective
+        ? this.objective.isOver(this.elapsed, this.mode.timeLimit)
+        : this.mode.checkWin(this.scoreboard, this.elapsed);
+    }
     if (win.over) {
       this.finalizeBestPlay(); // capture a streak the player was still on
       this.state = "end";
@@ -500,11 +578,12 @@ export class Match {
     const killerId = info?.sourceId;
     const headshot = info?.headshot ?? false;
     this.scoreboard.recordKill(killerId, victim.id, headshot);
-    if (killerId !== undefined && killerId !== victim.id) {
+    if (killerId !== undefined && killerId !== victim.id && this.modeId !== "gungame") {
       this.streaks.addScore(killerId, SCORE.kill + (headshot ? SCORE.headshotBonus : 0));
     }
     this.addKillfeed(killerId, victim, info?.weaponId, headshot);
-    this.dropVictimWeapon(victim);
+    this.applyGunGameDeath(killerId, victim, info?.weaponId);
+    if (this.modeId !== "gungame") this.dropVictimWeapon(victim);
     this.maybeScavenger(victim);
     this.trackPlayerKD(killerId, victim.id);
     if (this.net) this.net.sendDeath(victim.id, killerId, info?.weaponId, headshot);
@@ -520,18 +599,66 @@ export class Match {
     this.scoreboard.recordKill(killerId, victimId, headshot);
     // Credit the killer's streak score locally too, so the killer's own client
     // (which only ever sees this kill as a relayed death) fills its streak meter.
-    if (killerId !== undefined && killerId !== victimId) {
+    if (killerId !== undefined && killerId !== victimId && this.modeId !== "gungame") {
       this.streaks.addScore(killerId, SCORE.kill + (headshot ? SCORE.headshotBonus : 0));
     }
     const victim = this.actorList.find((a) => a.id === victimId);
     if (!victim) return;
     this.addKillfeed(killerId, victim, weaponId, headshot);
-    this.dropVictimWeapon(victim);
+    this.applyGunGameDeath(killerId, victim, weaponId);
+    if (this.modeId !== "gungame") this.dropVictimWeapon(victim);
     this.maybeScavenger(victim);
     this.trackPlayerKD(killerId, victimId);
     const ra = this.remotes.get(victimId);
     if (ra) ra.markDead();
     this.prevAlive.set(victimId, false);
+  }
+
+  /**
+   * Gun Game tier progression: a gun kill with the killer's current-tier weapon
+   * advances them one tier (and swaps their weapon); a melee ("melee") death
+   * drops the victim a tier. A knife kill on the knife tier wins the match.
+   * No-op outside Gun Game.
+   */
+  private applyGunGameDeath(
+    killerId: number | undefined,
+    victim: Actor,
+    weaponId: string | undefined,
+  ): void {
+    const gg = this.gunGame;
+    if (!gg) return;
+
+    // Knifed (melee swing) -> victim drops a tier.
+    if (weaponId === "melee") {
+      const down = gg.onMeleeDeath(victim.id);
+      if (down) this.equipTier(down.id, down.weaponId);
+      return;
+    }
+
+    // A kill -> killer advances a tier (if made with their current-tier weapon).
+    if (killerId === undefined || killerId === victim.id) return;
+    const killerIsBot = killerId !== this.player?.id;
+    const up = gg.onKill(killerId, victim.id, weaponId, killerIsBot);
+    if (up) this.equipTier(up.id, up.weaponId);
+  }
+
+  /** Swap an actor's weapon to a Gun Game tier. "knife" arms the throwing-knife
+   * lethal for the player (and keeps their gun as-is, since the win is a throw). */
+  private equipTier(actorId: number, weaponId: string): void {
+    if (weaponId === "knife") {
+      // Player-only final tier: re-arm the throwing knife lethal (full ammo).
+      if (this.player && actorId === this.player.id) {
+        this.opts.playerLethal = "knife";
+      }
+      return;
+    }
+    const def = getWeapon(weaponId);
+    if (this.player && actorId === this.player.id) {
+      this.player.setWeapon(def);
+    } else {
+      const bot = this.bots.find((b) => b.id === actorId);
+      if (bot) bot.setWeapon(def);
+    }
   }
 
   private addKillfeed(

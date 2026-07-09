@@ -9,7 +9,7 @@ import * as THREE from "../three.ts";
 import type { Character } from "./Character.ts";
 import { BotAI, type Difficulty } from "./BotAI.ts";
 import type { Navigator } from "./BotNavigator.ts";
-import { Weapon } from "../weapons/Weapon.ts";
+import { Weapon, type WeaponHooks } from "../weapons/Weapon.ts";
 import type { WeaponDef } from "../weapons/WeaponDefinition.ts";
 import type { Attachment } from "../weapons/AttachmentDefinitions.ts";
 import type { DamageInfo, DamageTarget, VFXSink, WorldQuery } from "../weapons/combat.ts";
@@ -78,7 +78,7 @@ export class Bot implements Actor {
   readonly isPlayer = false;
   readonly difficulty: Difficulty;
   readonly character: Character;
-  readonly weapon: Weapon;
+  weapon: Weapon;
   readonly object3d: THREE.Object3D;
 
   alive = true;
@@ -99,6 +99,7 @@ export class Bot implements Actor {
 
   private brain: BotAI;
   private deathTimer = 0;
+  private readonly onShotHook?: (weaponId: string, position: THREE.Vector3) => void;
 
   constructor(cfg: BotConfig) {
     this.id = cfg.id;
@@ -108,15 +109,33 @@ export class Bot implements Actor {
     this.object3d = cfg.character.root;
     this.feet.copy(cfg.spawn);
     this.yaw = cfg.yaw ?? 0;
-    const onShot = cfg.onShot;
+    this.onShotHook = cfg.onShot;
     this.weapon = new Weapon(cfg.weaponDef, cfg.attachments ?? [], {
       team: cfg.team,
       isPlayer: false,
       weaponId: cfg.weaponDef.id,
       id: cfg.id,
-    }, onShot ? { onShot: (w) => onShot(w.def.id, this.eyePosition(new THREE.Vector3())) } : {});
+    }, this.buildWeaponHooks());
     this.brain = new BotAI(cfg.difficulty);
     this.syncTransform();
+  }
+
+  private buildWeaponHooks(): WeaponHooks {
+    const onShot = this.onShotHook;
+    return onShot ? { onShot: (w) => onShot(w.def.id, this.eyePosition(new THREE.Vector3())) } : {};
+  }
+
+  /**
+   * Swap this bot's weapon mid-match (used by Gun Game tier progression).
+   * Rebuilds the Weapon with the same shooter tag + onShot hook.
+   */
+  setWeapon(def: WeaponDef, attachments: ReadonlyArray<Attachment | string> = []): void {
+    this.weapon = new Weapon(def, attachments, {
+      team: this.team,
+      isPlayer: false,
+      weaponId: def.id,
+      id: this.id,
+    }, this.buildWeaponHooks());
   }
 
   // ---- Actor / DamageTarget ----

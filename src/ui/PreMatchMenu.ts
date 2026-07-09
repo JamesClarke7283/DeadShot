@@ -10,7 +10,7 @@ import { MAPS } from "../maps/maps.ts";
 
 export interface PreMatchConfig {
   mapId: string;
-  mode: "tdm" | "ffa" | "dom" | "ctf";
+  mode: "tdm" | "ffa" | "dom" | "ctf" | "gungame";
   botCount: number;
   difficulty: "recruit" | "regular" | "veteran";
   classSlot: number;
@@ -233,6 +233,7 @@ export class PreMatchMenu {
       { id: "ffa", label: "FREE-FOR-ALL" },
       { id: "dom", label: "DOMINATION" },
       { id: "ctf", label: "CAPTURE THE FLAG" },
+      { id: "gungame", label: "GUN GAME" },
     ];
     row.style.flexWrap = "wrap";
     for (const m of modes) {

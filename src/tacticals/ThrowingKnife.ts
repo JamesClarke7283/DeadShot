@@ -75,6 +75,7 @@ export class ThrowingKnife extends Throwable {
         headshot: false,
         sourceTeam: this.team,
         weaponId: "knife",
+        sourceId: this.sourceId,
       });
     }
     // Land and rest as a recoverable knife regardless of what was hit.

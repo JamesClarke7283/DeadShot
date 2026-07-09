@@ -38,6 +38,7 @@ export abstract class Throwable extends Equipment {
   protected readonly position = new THREE.Vector3();
   protected readonly velocity = new THREE.Vector3();
   protected team: TeamId = "ffa";
+  protected sourceId: number | undefined;
   protected fuse = 0;
   protected detonated = false;
   protected stuck = false;
@@ -57,8 +58,10 @@ export abstract class Throwable extends Equipment {
     direction: THREE.Vector3,
     team: TeamId,
     ctx: EquipmentContext,
+    sourceId?: number,
   ): void {
     this.team = team;
+    this.sourceId = sourceId;
     this.position.copy(origin);
     this.prev.copy(origin);
     this.velocity.copy(direction).normalize().multiplyScalar(this.cfg.throwSpeed);
@@ -214,6 +217,7 @@ export abstract class Throwable extends Equipment {
         sourceTeam: this.team,
         explosive: true,
         weaponId,
+        sourceId: this.sourceId,
       });
     }
   }

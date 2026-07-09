@@ -33,6 +33,8 @@ export interface ThrowParams {
   direction: THREE.Vector3;
   /** Team of the thrower (friendly-fire rules). */
   team: TeamId;
+  /** Actor id of the thrower, for kill attribution (knives, explosives). */
+  sourceId?: number;
 }
 
 /** Recursively dispose geometries + materials under an object. */

@@ -44,7 +44,7 @@ export const DEFAULT_BINDINGS: Bindings = {
   reload: ["KeyR"],
   lethal: ["KeyG"],
   tactical: ["KeyQ"],
-  melee: ["KeyV"],
+  melee: ["KeyK"],
   interact: ["KeyE"],
   switchWeapon: ["Digit1", "Digit2"],
   fireMode: ["KeyB"],

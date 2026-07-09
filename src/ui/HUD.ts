@@ -48,6 +48,9 @@ export class HUD {
   private readonly timer: HTMLElement;
   private readonly streakLabel: HTMLElement;
   private readonly streakFill: HTMLElement;
+  private readonly gunGameWrap: HTMLElement;
+  private readonly gunGameLabel: HTMLElement;
+  private readonly gunGameFill: HTMLElement;
 
   // Contextual interaction prompt ("Press E — …").
   private readonly prompt: HTMLElement;
@@ -287,6 +290,48 @@ export class HUD {
       },
     });
 
+    // ---- Above health: Gun Game tier progress (hidden outside Gun Game) ----
+    this.gunGameWrap = el("div", {
+      parent: this.layer,
+      style: {
+        position: "absolute",
+        left: "20px",
+        bottom: "96px",
+        width: "240px",
+        display: "none",
+        flexDirection: "column",
+        gap: "3px",
+      },
+    });
+    this.gunGameLabel = el("div", {
+      parent: this.gunGameWrap,
+      text: "",
+      style: {
+        font: "800 12px/1.1 'Segoe UI', system-ui, sans-serif",
+        color: "#ff9d3a",
+        letterSpacing: "0.06em",
+      },
+    });
+    const ggTrack = el("div", {
+      parent: this.gunGameWrap,
+      style: {
+        height: "10px",
+        background: "rgba(10,12,16,0.7)",
+        border: "2px solid #0a0c10",
+        borderRadius: "5px",
+        overflow: "hidden",
+      },
+    });
+    this.gunGameFill = el("div", {
+      parent: ggTrack,
+      style: {
+        width: "0%",
+        height: "100%",
+        background: "linear-gradient(90deg,#ff7a18,#ffcc55)",
+        transition: "width 0.25s ease-out",
+      },
+    });
+
     // ---- Center: interaction prompt ----
     // Parented to the root (not the hideable HUD layer) so pickups still prompt
     // in hardcore mode, where the rest of the HUD is hidden.
@@ -518,6 +563,25 @@ export class HUD {
     const ratio = nextCost > 0 ? Math.max(0, Math.min(1, score / nextCost)) : 0;
     this.streakLabel.textContent = `NEXT: ${nextName.toUpperCase()} (${score}/${nextCost})`;
     this.streakFill.style.width = `${ratio * 100}%`;
+  }
+
+  /**
+   * Gun Game tier progress bar. Pass null to hide (non-Gun-Game modes). The tier
+   * is 1-indexed for display (tier 1 = pistol, maxTier = knife kill to win).
+   */
+  setGunGameTier(
+    tier: number | null,
+    maxTier: number | null,
+    weaponName: string | null,
+  ): void {
+    if (tier === null || maxTier === null || weaponName === null) {
+      this.gunGameWrap.style.display = "none";
+      return;
+    }
+    this.gunGameWrap.style.display = "flex";
+    this.gunGameLabel.textContent =
+      `GUN GAME  TIER ${tier}/${maxTier}  —  ${weaponName.toUpperCase()}`;
+    this.gunGameFill.style.width = `${Math.min(1, tier / maxTier) * 100}%`;
   }
 
   /** Show/hide the centered interaction prompt. Pass null to hide. */

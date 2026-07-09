@@ -7,7 +7,7 @@
 
 import type { TeamId } from "../core/types.ts";
 
-export type NetMode = "tdm" | "ffa" | "dom" | "ctf";
+export type NetMode = "tdm" | "ffa" | "dom" | "ctf" | "gungame";
 export type NetDifficulty = "recruit" | "regular" | "veteran";
 
 /** Match settings chosen by the room host. */

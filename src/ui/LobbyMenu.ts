@@ -298,10 +298,13 @@ export class LobbyMenu {
         { value: "ffa", text: "Free-for-All" },
         { value: "dom", text: "Domination" },
         { value: "ctf", text: "Capture the Flag" },
+        { value: "gungame", text: "Gun Game" },
       ],
       this.settings.mode,
       (v) => {
-        this.settings.mode = (["tdm", "ffa", "dom", "ctf"].includes(v) ? v : "tdm") as NetMode;
+        this.settings.mode = (
+          ["tdm", "ffa", "dom", "ctf", "gungame"].includes(v) ? v : "tdm"
+        ) as NetMode;
         this.pushSettings();
       },
     );

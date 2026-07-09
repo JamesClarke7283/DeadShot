@@ -4,7 +4,7 @@
 
 import type { TeamId } from "../core/types.ts";
 
-export type ModeId = "tdm" | "ffa" | "dom" | "ctf";
+export type ModeId = "tdm" | "ffa" | "dom" | "ctf" | "gungame";
 
 /** Score-per-action (streaks are scored separately by the streak manager). */
 export const SCORE = {

@@ -48,7 +48,7 @@ export interface Settings {
 
 export interface MatchConfig {
   mapId: string;
-  mode: "tdm" | "ffa" | "dom" | "ctf";
+  mode: "tdm" | "ffa" | "dom" | "ctf" | "gungame";
   botCount: number;
   difficulty: "recruit" | "regular" | "veteran";
   hardcore: boolean;
