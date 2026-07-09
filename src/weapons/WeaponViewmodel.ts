@@ -99,6 +99,9 @@ export class WeaponViewmodel {
     this.meleeing = true;
     this.meleeT = 0;
     this.knifeMesh.visible = true;
+    // Reset to the start pose (left side, blade pointing forward-right).
+    this.knifeMesh.position.set(-0.35, -0.16, -0.55);
+    this.knifeMesh.rotation.set(0.2, -1.2, -0.6);
   }
 
   startReload(duration: number): void {
@@ -157,17 +160,22 @@ export class WeaponViewmodel {
         this.knifeMesh.visible = false;
         this.gun.visible = true; // restore gun
       } else {
-        // Start at the left (-0.32), sweep right (+0.32). Blade horizontal,
-        // tilted in roll, sweeping across the lower-centre of the view.
-        const swipe = p; // monotonic left -> right
-        const arc = Math.sin(p * Math.PI); // 0..1..0 lift
-        this.knifeMesh.position.set(-0.32 + 0.64 * swipe, -0.18 - 0.06 * arc, -0.5);
-        // Yaw rotates from facing-left to facing-right; roll tilts at apex.
-        this.knifeMesh.rotation.set(
-          -0.3 + 0.6 * arc, // pitch: dip forward then back
-          -1.0 + 2.0 * swipe, // yaw: left -> right
-          0.8 - 1.6 * arc, // roll: tilted at apex
-        );
+        // Horizontal sweep: left (-0.35) -> right (+0.35). The blade stays at a
+        // consistent depth and height, yawing from pointing left to pointing
+        // right so the full blade silhouette is always visible to the camera.
+        const sweep = p; // 0..1 monotonic
+        const lift = Math.sin(p * Math.PI); // 0..1..0 slight vertical arc
+        const x = -0.35 + 0.70 * sweep;
+        const y = -0.16 + 0.04 * lift; // small rise in the middle of the swipe
+        const z = -0.55;
+        this.knifeMesh.position.set(x, y, z);
+        // Yaw: blade starts pointing forward-left (-1.2 rad) and swings to
+        // forward-right (+1.2 rad) so the flat of the blade faces the camera
+        // throughout the swipe. Roll tilts slightly at the apex for flavour.
+        const yaw = -1.2 + 2.4 * sweep;
+        const pitch = 0.2 - 0.3 * lift;
+        const roll = -0.6 + 0.4 * lift;
+        this.knifeMesh.rotation.set(pitch, yaw, roll);
         this.gun.visible = false; // hide gun while the knife swipes
       }
     } else {
