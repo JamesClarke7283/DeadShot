@@ -47,7 +47,11 @@ export interface WorldQuery {
     origin: THREE.Vector3,
     direction: THREE.Vector3,
     maxDistance: number,
-    ignore?: THREE.Object3D,
+    /**
+     * Shooter's own object3d to skip (bullets). `null` marks a thrown
+     * projectile (no shooter body at the origin — no self-skip distance).
+     */
+    ignore?: THREE.Object3D | null,
   ): RaycastHit | null;
   /** Damageable targets whose centre is within `radius` of `center`. */
   radiusTargets(center: THREE.Vector3, radius: number): DamageTarget[];

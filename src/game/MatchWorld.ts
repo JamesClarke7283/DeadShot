@@ -33,6 +33,7 @@ export class MatchWorld implements WorldQuery {
     origin: THREE.Vector3,
     direction: THREE.Vector3,
     maxDistance: number,
+    ignore?: THREE.Object3D | null,
   ): RaycastHit | null {
     // World geometry.
     this.raycaster.set(origin, direction);
@@ -52,9 +53,16 @@ export class MatchWorld implements WorldQuery {
       break;
     }
 
-    // Actors (analytic spheres).
+    // Actors (analytic spheres). `ignore` skips the shooter's own actor. When
+    // `ignore` is undefined (bullet fired from a weapon with no object3d ref),
+    // fall back to the SELF_SKIP distance to avoid self-hits. When `ignore` is
+    // null (a thrown projectile — no shooter body at the origin), no self-skip
+    // distance is applied so close-range hits register.
+    const isProjectile = ignore === null;
+    const selfSkip = isProjectile ? 0 : SELF_SKIP;
     for (const a of this.getActors()) {
       if (!a.alive) continue;
+      if (ignore && a.object3d === ignore) continue;
       a.position(this._body); // body centre ~ feet + 1
       a.eyePosition(this._head); // head/eye centre
       const bodyT = raySphere(origin, direction, this._body, BODY_RADIUS);
@@ -62,15 +70,15 @@ export class MatchWorld implements WorldQuery {
 
       let t = -1;
       let headshot = false;
-      if (headT > SELF_SKIP && (t < 0 || headT < t)) {
+      if (headT > selfSkip && (t < 0 || headT < t)) {
         t = headT;
         headshot = true;
       }
-      if (bodyT > SELF_SKIP && (t < 0 || bodyT < t)) {
+      if (bodyT > selfSkip && (t < 0 || bodyT < t)) {
         t = bodyT;
         headshot = false;
       }
-      if (t > SELF_SKIP && t < bestDist) {
+      if (t > selfSkip && t < bestDist) {
         bestDist = t;
         const point = origin.clone().addScaledVector(direction, t);
         const center = headshot ? this._head : this._body;

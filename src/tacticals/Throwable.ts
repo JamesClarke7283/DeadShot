@@ -97,7 +97,7 @@ export abstract class Throwable extends Equipment {
 
     if (stepLen > 1e-5) {
       const dir = this.step.clone().multiplyScalar(1 / stepLen);
-      const hit = ctx.world.raycast(this.prev, dir, stepLen, this.mesh ?? undefined);
+      const hit = ctx.world.raycast(this.prev, dir, stepLen, null);
       if (hit) {
         this.position.copy(hit.point);
         if (this.mesh) this.mesh.position.copy(this.position);
