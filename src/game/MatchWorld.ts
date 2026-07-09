@@ -40,9 +40,13 @@ export class MatchWorld implements WorldQuery {
     this.raycaster.far = maxDistance;
     let best: RaycastHit | null = null;
     let bestDist = maxDistance;
+    // Projectiles (ignore === null) get no self-skip on actors, but still need
+    // to skip map geometry at the spawn point — use the same threshold.
+    const geoSkip = ignore === null ? SELF_SKIP : 0;
     const geo = this.raycaster.intersectObject(this.mapRoot, true);
     for (const h of geo) {
       if (h.object.name === "__outline" || !h.face) continue;
+      if (h.distance < geoSkip) continue;
       bestDist = h.distance;
       best = {
         point: h.point.clone(),
