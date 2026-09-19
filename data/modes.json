@@ -1,0 +1,57 @@
+[
+  {
+    "id": "tdm",
+    "name": "Team Deathmatch",
+    "friendlyFire": false,
+    "scoreCap": 100,
+    "timeLimit": 600,
+    "teams": [
+      "blue",
+      "red"
+    ]
+  },
+  {
+    "id": "ffa",
+    "name": "Free-for-All",
+    "friendlyFire": true,
+    "scoreCap": 100,
+    "timeLimit": 600,
+    "teams": [
+      "ffa"
+    ]
+  },
+  {
+    "id": "dom",
+    "name": "Domination",
+    "friendlyFire": false,
+    "scoreCap": 200,
+    "timeLimit": 600,
+    "teams": [
+      "blue",
+      "red"
+    ],
+    "objective": "dom"
+  },
+  {
+    "id": "ctf",
+    "name": "Capture the Flag",
+    "friendlyFire": false,
+    "scoreCap": 3,
+    "timeLimit": 600,
+    "teams": [
+      "blue",
+      "red"
+    ],
+    "objective": "ctf"
+  },
+  {
+    "id": "gungame",
+    "name": "Gun Game",
+    "friendlyFire": true,
+    "scoreCap": 8,
+    "timeLimit": 600,
+    "teams": [
+      "ffa"
+    ]
+  }
+]

@@ -1,0 +1,301 @@
+{
+  "version": 1,
+  "classes": [
+    {
+      "name": "Custom 1",
+      "primary": {
+        "weaponId": "m4",
+        "attachments": [
+          "reddot",
+          "compensator"
+        ]
+      },
+      "secondary": {
+        "weaponId": "m9",
+        "attachments": []
+      },
+      "tactical": "flashbang",
+      "lethal": "frag",
+      "fieldUpgrade": "deadsilence",
+      "perks": [
+        "double_time",
+        "ghost",
+        "amped"
+      ],
+      "streaks": [
+        "uav",
+        "care_package",
+        "attack_heli"
+      ],
+      "camo": "gunmetal"
+    },
+    {
+      "name": "Custom 2",
+      "primary": {
+        "weaponId": "m4",
+        "attachments": [
+          "reddot",
+          "compensator"
+        ]
+      },
+      "secondary": {
+        "weaponId": "m9",
+        "attachments": []
+      },
+      "tactical": "flashbang",
+      "lethal": "frag",
+      "fieldUpgrade": "deadsilence",
+      "perks": [
+        "double_time",
+        "ghost",
+        "amped"
+      ],
+      "streaks": [
+        "uav",
+        "care_package",
+        "attack_heli"
+      ],
+      "camo": "gunmetal"
+    },
+    {
+      "name": "Custom 3",
+      "primary": {
+        "weaponId": "m4",
+        "attachments": [
+          "reddot",
+          "compensator"
+        ]
+      },
+      "secondary": {
+        "weaponId": "m9",
+        "attachments": []
+      },
+      "tactical": "flashbang",
+      "lethal": "frag",
+      "fieldUpgrade": "deadsilence",
+      "perks": [
+        "double_time",
+        "ghost",
+        "amped"
+      ],
+      "streaks": [
+        "uav",
+        "care_package",
+        "attack_heli"
+      ],
+      "camo": "gunmetal"
+    },
+    {
+      "name": "Custom 4",
+      "primary": {
+        "weaponId": "m4",
+        "attachments": [
+          "reddot",
+          "compensator"
+        ]
+      },
+      "secondary": {
+        "weaponId": "m9",
+        "attachments": []
+      },
+      "tactical": "flashbang",
+      "lethal": "frag",
+      "fieldUpgrade": "deadsilence",
+      "perks": [
+        "double_time",
+        "ghost",
+        "amped"
+      ],
+      "streaks": [
+        "uav",
+        "care_package",
+        "attack_heli"
+      ],
+      "camo": "gunmetal"
+    },
+    {
+      "name": "Custom 5",
+      "primary": {
+        "weaponId": "m4",
+        "attachments": [
+          "reddot",
+          "compensator"
+        ]
+      },
+      "secondary": {
+        "weaponId": "m9",
+        "attachments": []
+      },
+      "tactical": "flashbang",
+      "lethal": "frag",
+      "fieldUpgrade": "deadsilence",
+      "perks": [
+        "double_time",
+        "ghost",
+        "amped"
+      ],
+      "streaks": [
+        "uav",
+        "care_package",
+        "attack_heli"
+      ],
+      "camo": "gunmetal"
+    },
+    {
+      "name": "Custom 6",
+      "primary": {
+        "weaponId": "m4",
+        "attachments": [
+          "reddot",
+          "compensator"
+        ]
+      },
+      "secondary": {
+        "weaponId": "m9",
+        "attachments": []
+      },
+      "tactical": "flashbang",
+      "lethal": "frag",
+      "fieldUpgrade": "deadsilence",
+      "perks": [
+        "double_time",
+        "ghost",
+        "amped"
+      ],
+      "streaks": [
+        "uav",
+        "care_package",
+        "attack_heli"
+      ],
+      "camo": "gunmetal"
+    },
+    {
+      "name": "Custom 7",
+      "primary": {
+        "weaponId": "m4",
+        "attachments": [
+          "reddot",
+          "compensator"
+        ]
+      },
+      "secondary": {
+        "weaponId": "m9",
+        "attachments": []
+      },
+      "tactical": "flashbang",
+      "lethal": "frag",
+      "fieldUpgrade": "deadsilence",
+      "perks": [
+        "double_time",
+        "ghost",
+        "amped"
+      ],
+      "streaks": [
+        "uav",
+        "care_package",
+        "attack_heli"
+      ],
+      "camo": "gunmetal"
+    },
+    {
+      "name": "Custom 8",
+      "primary": {
+        "weaponId": "m4",
+        "attachments": [
+          "reddot",
+          "compensator"
+        ]
+      },
+      "secondary": {
+        "weaponId": "m9",
+        "attachments": []
+      },
+      "tactical": "flashbang",
+      "lethal": "frag",
+      "fieldUpgrade": "deadsilence",
+      "perks": [
+        "double_time",
+        "ghost",
+        "amped"
+      ],
+      "streaks": [
+        "uav",
+        "care_package",
+        "attack_heli"
+      ],
+      "camo": "gunmetal"
+    },
+    {
+      "name": "Custom 9",
+      "primary": {
+        "weaponId": "m4",
+        "attachments": [
+          "reddot",
+          "compensator"
+        ]
+      },
+      "secondary": {
+        "weaponId": "m9",
+        "attachments": []
+      },
+      "tactical": "flashbang",
+      "lethal": "frag",
+      "fieldUpgrade": "deadsilence",
+      "perks": [
+        "double_time",
+        "ghost",
+        "amped"
+      ],
+      "streaks": [
+        "uav",
+        "care_package",
+        "attack_heli"
+      ],
+      "camo": "gunmetal"
+    },
+    {
+      "name": "Custom 10",
+      "primary": {
+        "weaponId": "m4",
+        "attachments": [
+          "reddot",
+          "compensator"
+        ]
+      },
+      "secondary": {
+        "weaponId": "m9",
+        "attachments": []
+      },
+      "tactical": "flashbang",
+      "lethal": "frag",
+      "fieldUpgrade": "deadsilence",
+      "perks": [
+        "double_time",
+        "ghost",
+        "amped"
+      ],
+      "streaks": [
+        "uav",
+        "care_package",
+        "attack_heli"
+      ],
+      "camo": "gunmetal"
+    }
+  ],
+  "settings": {
+    "sensitivity": 1,
+    "fov": 75,
+    "masterVolume": 0.8,
+    "sfxVolume": 0.9,
+    "musicVolume": 0.5,
+    "invertY": false,
+    "killcam": true
+  },
+  "lastMatch": {
+    "mapId": "desert_town",
+    "mode": "tdm",
+    "botCount": 8,
+    "difficulty": "regular",
+    "hardcore": false
+  }
+}

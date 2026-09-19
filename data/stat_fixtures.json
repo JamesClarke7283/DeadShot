@@ -1,0 +1,1139 @@
+[
+  {
+    "weapon": "m4",
+    "attachments": [],
+    "expected": {
+      "damage": 33,
+      "headshotMultiplier": 1.4,
+      "fireRate": 750,
+      "magazine": 30,
+      "reserve": 120,
+      "reloadTime": 2.1,
+      "adsTime": 0.25,
+      "mobility": 80,
+      "range": {
+        "near": 32,
+        "far": 62,
+        "minDamage": 22
+      },
+      "recoil": {
+        "vertical": 1.1,
+        "horizontal": 0.5,
+        "recovery": 7,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 720,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "m4",
+    "attachments": [
+      "reddot",
+      "compensator"
+    ],
+    "expected": {
+      "damage": 33,
+      "headshotMultiplier": 1.4,
+      "fireRate": 750,
+      "magazine": 30,
+      "reserve": 120,
+      "reloadTime": 2.1,
+      "adsTime": 0.2375,
+      "mobility": 80,
+      "range": {
+        "near": 28.8,
+        "far": 55.800000000000004,
+        "minDamage": 22
+      },
+      "recoil": {
+        "vertical": 0.8800000000000001,
+        "horizontal": 0.4,
+        "recovery": 7,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 720,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "ak12",
+    "attachments": [],
+    "expected": {
+      "damage": 38,
+      "headshotMultiplier": 1.45,
+      "fireRate": 650,
+      "magazine": 30,
+      "reserve": 120,
+      "reloadTime": 2.3,
+      "adsTime": 0.27,
+      "mobility": 78,
+      "range": {
+        "near": 34,
+        "far": 66,
+        "minDamage": 25
+      },
+      "recoil": {
+        "vertical": 1.5,
+        "horizontal": 0.8,
+        "recovery": 6,
+        "firstShotMult": 1.3
+      },
+      "bulletVelocity": 715,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "ak12",
+    "attachments": [
+      "reddot",
+      "compensator"
+    ],
+    "expected": {
+      "damage": 38,
+      "headshotMultiplier": 1.45,
+      "fireRate": 650,
+      "magazine": 30,
+      "reserve": 120,
+      "reloadTime": 2.3,
+      "adsTime": 0.2565,
+      "mobility": 78,
+      "range": {
+        "near": 30.6,
+        "far": 59.4,
+        "minDamage": 25
+      },
+      "recoil": {
+        "vertical": 1.2000000000000002,
+        "horizontal": 0.6400000000000001,
+        "recovery": 6,
+        "firstShotMult": 1.3
+      },
+      "bulletVelocity": 715,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "scarl",
+    "attachments": [],
+    "expected": {
+      "damage": 40,
+      "headshotMultiplier": 1.45,
+      "fireRate": 600,
+      "magazine": 25,
+      "reserve": 125,
+      "reloadTime": 2.25,
+      "adsTime": 0.28,
+      "mobility": 77,
+      "range": {
+        "near": 36,
+        "far": 70,
+        "minDamage": 26
+      },
+      "recoil": {
+        "vertical": 1.6,
+        "horizontal": 0.7,
+        "recovery": 6,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 740,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "scarl",
+    "attachments": [
+      "reddot",
+      "compensator"
+    ],
+    "expected": {
+      "damage": 40,
+      "headshotMultiplier": 1.45,
+      "fireRate": 600,
+      "magazine": 25,
+      "reserve": 125,
+      "reloadTime": 2.25,
+      "adsTime": 0.266,
+      "mobility": 77,
+      "range": {
+        "near": 32.4,
+        "far": 63,
+        "minDamage": 26
+      },
+      "recoil": {
+        "vertical": 1.2800000000000002,
+        "horizontal": 0.5599999999999999,
+        "recovery": 6,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 740,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "m16a4",
+    "attachments": [],
+    "expected": {
+      "damage": 31,
+      "headshotMultiplier": 1.5,
+      "fireRate": 800,
+      "magazine": 30,
+      "reserve": 120,
+      "reloadTime": 2.2,
+      "adsTime": 0.26,
+      "mobility": 79,
+      "range": {
+        "near": 40,
+        "far": 75,
+        "minDamage": 25
+      },
+      "recoil": {
+        "vertical": 1.3,
+        "horizontal": 0.4,
+        "recovery": 9,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 760,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "m16a4",
+    "attachments": [
+      "reddot",
+      "compensator"
+    ],
+    "expected": {
+      "damage": 31,
+      "headshotMultiplier": 1.5,
+      "fireRate": 800,
+      "magazine": 30,
+      "reserve": 120,
+      "reloadTime": 2.2,
+      "adsTime": 0.247,
+      "mobility": 79,
+      "range": {
+        "near": 36,
+        "far": 67.5,
+        "minDamage": 25
+      },
+      "recoil": {
+        "vertical": 1.04,
+        "horizontal": 0.32000000000000006,
+        "recovery": 9,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 760,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "mp5",
+    "attachments": [],
+    "expected": {
+      "damage": 28,
+      "headshotMultiplier": 1.4,
+      "fireRate": 800,
+      "magazine": 30,
+      "reserve": 120,
+      "reloadTime": 1.9,
+      "adsTime": 0.2,
+      "mobility": 90,
+      "range": {
+        "near": 14,
+        "far": 30,
+        "minDamage": 16
+      },
+      "recoil": {
+        "vertical": 0.9,
+        "horizontal": 0.5,
+        "recovery": 8,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 400,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "mp5",
+    "attachments": [
+      "reddot",
+      "compensator"
+    ],
+    "expected": {
+      "damage": 28,
+      "headshotMultiplier": 1.4,
+      "fireRate": 800,
+      "magazine": 30,
+      "reserve": 120,
+      "reloadTime": 1.9,
+      "adsTime": 0.19,
+      "mobility": 90,
+      "range": {
+        "near": 12.6,
+        "far": 27,
+        "minDamage": 16
+      },
+      "recoil": {
+        "vertical": 0.7200000000000001,
+        "horizontal": 0.4,
+        "recovery": 8,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 400,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "p90",
+    "attachments": [],
+    "expected": {
+      "damage": 24,
+      "headshotMultiplier": 1.35,
+      "fireRate": 900,
+      "magazine": 50,
+      "reserve": 150,
+      "reloadTime": 2.4,
+      "adsTime": 0.22,
+      "mobility": 88,
+      "range": {
+        "near": 12,
+        "far": 26,
+        "minDamage": 14
+      },
+      "recoil": {
+        "vertical": 0.8,
+        "horizontal": 0.6,
+        "recovery": 9,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 380,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "p90",
+    "attachments": [
+      "reddot",
+      "compensator"
+    ],
+    "expected": {
+      "damage": 24,
+      "headshotMultiplier": 1.35,
+      "fireRate": 900,
+      "magazine": 50,
+      "reserve": 150,
+      "reloadTime": 2.4,
+      "adsTime": 0.209,
+      "mobility": 88,
+      "range": {
+        "near": 10.8,
+        "far": 23.400000000000002,
+        "minDamage": 14
+      },
+      "recoil": {
+        "vertical": 0.6400000000000001,
+        "horizontal": 0.48,
+        "recovery": 9,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 380,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "uzi",
+    "attachments": [],
+    "expected": {
+      "damage": 26,
+      "headshotMultiplier": 1.35,
+      "fireRate": 950,
+      "magazine": 32,
+      "reserve": 128,
+      "reloadTime": 2,
+      "adsTime": 0.19,
+      "mobility": 91,
+      "range": {
+        "near": 11,
+        "far": 24,
+        "minDamage": 13
+      },
+      "recoil": {
+        "vertical": 1,
+        "horizontal": 0.8,
+        "recovery": 8,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 360,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "uzi",
+    "attachments": [
+      "reddot",
+      "compensator"
+    ],
+    "expected": {
+      "damage": 26,
+      "headshotMultiplier": 1.35,
+      "fireRate": 950,
+      "magazine": 32,
+      "reserve": 128,
+      "reloadTime": 2,
+      "adsTime": 0.1805,
+      "mobility": 91,
+      "range": {
+        "near": 9.9,
+        "far": 21.6,
+        "minDamage": 13
+      },
+      "recoil": {
+        "vertical": 0.8,
+        "horizontal": 0.6400000000000001,
+        "recovery": 8,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 360,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "vector",
+    "attachments": [],
+    "expected": {
+      "damage": 22,
+      "headshotMultiplier": 1.3,
+      "fireRate": 1100,
+      "magazine": 25,
+      "reserve": 150,
+      "reloadTime": 2,
+      "adsTime": 0.18,
+      "mobility": 92,
+      "range": {
+        "near": 10,
+        "far": 22,
+        "minDamage": 12
+      },
+      "recoil": {
+        "vertical": 0.7,
+        "horizontal": 0.4,
+        "recovery": 11,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 370,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "vector",
+    "attachments": [
+      "reddot",
+      "compensator"
+    ],
+    "expected": {
+      "damage": 22,
+      "headshotMultiplier": 1.3,
+      "fireRate": 1100,
+      "magazine": 25,
+      "reserve": 150,
+      "reloadTime": 2,
+      "adsTime": 0.17099999999999999,
+      "mobility": 92,
+      "range": {
+        "near": 9,
+        "far": 19.8,
+        "minDamage": 12
+      },
+      "recoil": {
+        "vertical": 0.5599999999999999,
+        "horizontal": 0.32000000000000006,
+        "recovery": 11,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 370,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "m249",
+    "attachments": [],
+    "expected": {
+      "damage": 32,
+      "headshotMultiplier": 1.4,
+      "fireRate": 700,
+      "magazine": 100,
+      "reserve": 200,
+      "reloadTime": 6,
+      "adsTime": 0.45,
+      "mobility": 58,
+      "range": {
+        "near": 42,
+        "far": 78,
+        "minDamage": 24
+      },
+      "recoil": {
+        "vertical": 1.3,
+        "horizontal": 1,
+        "recovery": 5,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 750,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "m249",
+    "attachments": [
+      "reddot",
+      "compensator"
+    ],
+    "expected": {
+      "damage": 32,
+      "headshotMultiplier": 1.4,
+      "fireRate": 700,
+      "magazine": 100,
+      "reserve": 200,
+      "reloadTime": 6,
+      "adsTime": 0.4275,
+      "mobility": 58,
+      "range": {
+        "near": 37.800000000000004,
+        "far": 70.2,
+        "minDamage": 24
+      },
+      "recoil": {
+        "vertical": 1.04,
+        "horizontal": 0.8,
+        "recovery": 5,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 750,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "rpk",
+    "attachments": [],
+    "expected": {
+      "damage": 36,
+      "headshotMultiplier": 1.4,
+      "fireRate": 600,
+      "magazine": 45,
+      "reserve": 135,
+      "reloadTime": 4.6,
+      "adsTime": 0.4,
+      "mobility": 62,
+      "range": {
+        "near": 46,
+        "far": 82,
+        "minDamage": 27
+      },
+      "recoil": {
+        "vertical": 1.5,
+        "horizontal": 0.9,
+        "recovery": 5,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 760,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "rpk",
+    "attachments": [
+      "reddot",
+      "compensator"
+    ],
+    "expected": {
+      "damage": 36,
+      "headshotMultiplier": 1.4,
+      "fireRate": 600,
+      "magazine": 45,
+      "reserve": 135,
+      "reloadTime": 4.6,
+      "adsTime": 0.38,
+      "mobility": 62,
+      "range": {
+        "near": 41.4,
+        "far": 73.8,
+        "minDamage": 27
+      },
+      "recoil": {
+        "vertical": 1.2000000000000002,
+        "horizontal": 0.7200000000000001,
+        "recovery": 5,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 760,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "mk14",
+    "attachments": [],
+    "expected": {
+      "damage": 55,
+      "headshotMultiplier": 1.6,
+      "fireRate": 380,
+      "magazine": 20,
+      "reserve": 100,
+      "reloadTime": 2.6,
+      "adsTime": 0.32,
+      "mobility": 74,
+      "range": {
+        "near": 60,
+        "far": 100,
+        "minDamage": 45
+      },
+      "recoil": {
+        "vertical": 2.6,
+        "horizontal": 0.6,
+        "recovery": 5,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 800,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "mk14",
+    "attachments": [
+      "reddot",
+      "compensator"
+    ],
+    "expected": {
+      "damage": 55,
+      "headshotMultiplier": 1.6,
+      "fireRate": 380,
+      "magazine": 20,
+      "reserve": 100,
+      "reloadTime": 2.6,
+      "adsTime": 0.304,
+      "mobility": 74,
+      "range": {
+        "near": 54,
+        "far": 90,
+        "minDamage": 45
+      },
+      "recoil": {
+        "vertical": 2.08,
+        "horizontal": 0.48,
+        "recovery": 5,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 800,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "barrett",
+    "attachments": [],
+    "expected": {
+      "damage": 110,
+      "headshotMultiplier": 2.2,
+      "fireRate": 55,
+      "magazine": 7,
+      "reserve": 35,
+      "reloadTime": 4,
+      "adsTime": 0.5,
+      "mobility": 60,
+      "range": {
+        "near": 120,
+        "far": 220,
+        "minDamage": 95
+      },
+      "recoil": {
+        "vertical": 5.5,
+        "horizontal": 1,
+        "recovery": 3,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 900,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "barrett",
+    "attachments": [
+      "reddot",
+      "compensator"
+    ],
+    "expected": {
+      "damage": 110,
+      "headshotMultiplier": 2.2,
+      "fireRate": 55,
+      "magazine": 7,
+      "reserve": 35,
+      "reloadTime": 4,
+      "adsTime": 0.475,
+      "mobility": 60,
+      "range": {
+        "near": 108,
+        "far": 198,
+        "minDamage": 95
+      },
+      "recoil": {
+        "vertical": 4.4,
+        "horizontal": 0.8,
+        "recovery": 3,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 900,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "kar98",
+    "attachments": [],
+    "expected": {
+      "damage": 95,
+      "headshotMultiplier": 2.5,
+      "fireRate": 45,
+      "magazine": 5,
+      "reserve": 30,
+      "reloadTime": 3.2,
+      "adsTime": 0.48,
+      "mobility": 66,
+      "range": {
+        "near": 100,
+        "far": 200,
+        "minDamage": 90
+      },
+      "recoil": {
+        "vertical": 5,
+        "horizontal": 0.8,
+        "recovery": 3,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 850,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "kar98",
+    "attachments": [
+      "reddot",
+      "compensator"
+    ],
+    "expected": {
+      "damage": 95,
+      "headshotMultiplier": 2.5,
+      "fireRate": 45,
+      "magazine": 5,
+      "reserve": 30,
+      "reloadTime": 3.2,
+      "adsTime": 0.45599999999999996,
+      "mobility": 66,
+      "range": {
+        "near": 90,
+        "far": 180,
+        "minDamage": 90
+      },
+      "recoil": {
+        "vertical": 4,
+        "horizontal": 0.6400000000000001,
+        "recovery": 3,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 850,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "spas12",
+    "attachments": [],
+    "expected": {
+      "damage": 26,
+      "headshotMultiplier": 1.2,
+      "fireRate": 70,
+      "magazine": 8,
+      "reserve": 32,
+      "reloadTime": 3.6,
+      "adsTime": 0.26,
+      "mobility": 78,
+      "range": {
+        "near": 6,
+        "far": 16,
+        "minDamage": 6
+      },
+      "recoil": {
+        "vertical": 3,
+        "horizontal": 1.2,
+        "recovery": 6,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 250,
+      "spreadMult": 1,
+      "pellets": 8,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "spas12",
+    "attachments": [
+      "reddot",
+      "compensator"
+    ],
+    "expected": {
+      "damage": 26,
+      "headshotMultiplier": 1.2,
+      "fireRate": 70,
+      "magazine": 8,
+      "reserve": 32,
+      "reloadTime": 3.6,
+      "adsTime": 0.247,
+      "mobility": 78,
+      "range": {
+        "near": 5.4,
+        "far": 14.4,
+        "minDamage": 6
+      },
+      "recoil": {
+        "vertical": 2.4000000000000004,
+        "horizontal": 0.96,
+        "recovery": 6,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 250,
+      "spreadMult": 1,
+      "pellets": 8,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "ksg",
+    "attachments": [],
+    "expected": {
+      "damage": 22,
+      "headshotMultiplier": 1.2,
+      "fireRate": 65,
+      "magazine": 14,
+      "reserve": 42,
+      "reloadTime": 4,
+      "adsTime": 0.28,
+      "mobility": 76,
+      "range": {
+        "near": 7,
+        "far": 18,
+        "minDamage": 6
+      },
+      "recoil": {
+        "vertical": 2.8,
+        "horizontal": 1,
+        "recovery": 6,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 250,
+      "spreadMult": 1,
+      "pellets": 10,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "ksg",
+    "attachments": [
+      "reddot",
+      "compensator"
+    ],
+    "expected": {
+      "damage": 22,
+      "headshotMultiplier": 1.2,
+      "fireRate": 65,
+      "magazine": 14,
+      "reserve": 42,
+      "reloadTime": 4,
+      "adsTime": 0.266,
+      "mobility": 76,
+      "range": {
+        "near": 6.3,
+        "far": 16.2,
+        "minDamage": 6
+      },
+      "recoil": {
+        "vertical": 2.2399999999999998,
+        "horizontal": 0.8,
+        "recovery": 6,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 250,
+      "spreadMult": 1,
+      "pellets": 10,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "m9",
+    "attachments": [],
+    "expected": {
+      "damage": 28,
+      "headshotMultiplier": 1.5,
+      "fireRate": 450,
+      "magazine": 15,
+      "reserve": 60,
+      "reloadTime": 1.6,
+      "adsTime": 0.16,
+      "mobility": 95,
+      "range": {
+        "near": 15,
+        "far": 35,
+        "minDamage": 18
+      },
+      "recoil": {
+        "vertical": 1.2,
+        "horizontal": 0.6,
+        "recovery": 9,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 360,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "m9",
+    "attachments": [
+      "reddot",
+      "compensator"
+    ],
+    "expected": {
+      "damage": 28,
+      "headshotMultiplier": 1.5,
+      "fireRate": 450,
+      "magazine": 15,
+      "reserve": 60,
+      "reloadTime": 1.6,
+      "adsTime": 0.152,
+      "mobility": 95,
+      "range": {
+        "near": 13.5,
+        "far": 31.5,
+        "minDamage": 18
+      },
+      "recoil": {
+        "vertical": 0.96,
+        "horizontal": 0.48,
+        "recovery": 9,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 360,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "deagle",
+    "attachments": [],
+    "expected": {
+      "damage": 60,
+      "headshotMultiplier": 1.6,
+      "fireRate": 320,
+      "magazine": 7,
+      "reserve": 35,
+      "reloadTime": 2.1,
+      "adsTime": 0.2,
+      "mobility": 90,
+      "range": {
+        "near": 25,
+        "far": 45,
+        "minDamage": 40
+      },
+      "recoil": {
+        "vertical": 3.2,
+        "horizontal": 1,
+        "recovery": 6,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 470,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "deagle",
+    "attachments": [
+      "reddot",
+      "compensator"
+    ],
+    "expected": {
+      "damage": 60,
+      "headshotMultiplier": 1.6,
+      "fireRate": 320,
+      "magazine": 7,
+      "reserve": 35,
+      "reloadTime": 2.1,
+      "adsTime": 0.19,
+      "mobility": 90,
+      "range": {
+        "near": 22.5,
+        "far": 40.5,
+        "minDamage": 40
+      },
+      "recoil": {
+        "vertical": 2.5600000000000005,
+        "horizontal": 0.8,
+        "recovery": 6,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 470,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "rpg7",
+    "attachments": [],
+    "expected": {
+      "damage": 0,
+      "headshotMultiplier": 1,
+      "fireRate": 30,
+      "magazine": 1,
+      "reserve": 4,
+      "reloadTime": 3.4,
+      "adsTime": 0.4,
+      "mobility": 70,
+      "range": {
+        "near": 0,
+        "far": 0,
+        "minDamage": 0
+      },
+      "recoil": {
+        "vertical": 4,
+        "horizontal": 1,
+        "recovery": 4,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 45,
+      "spreadMult": 1,
+      "rocket": {
+        "speed": 45,
+        "directDamage": 150,
+        "splashDamage": 120,
+        "splashRadius": 6
+      },
+      "effects": []
+    }
+  },
+  {
+    "weapon": "rpg7",
+    "attachments": [
+      "reddot",
+      "compensator"
+    ],
+    "expected": {
+      "damage": 0,
+      "headshotMultiplier": 1,
+      "fireRate": 30,
+      "magazine": 1,
+      "reserve": 4,
+      "reloadTime": 3.4,
+      "adsTime": 0.38,
+      "mobility": 70,
+      "range": {
+        "near": 0,
+        "far": 0,
+        "minDamage": 0
+      },
+      "recoil": {
+        "vertical": 3.2,
+        "horizontal": 0.8,
+        "recovery": 4,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 45,
+      "spreadMult": 1,
+      "rocket": {
+        "speed": 45,
+        "directDamage": 150,
+        "splashDamage": 120,
+        "splashRadius": 6
+      },
+      "effects": []
+    }
+  },
+  {
+    "weapon": "knife",
+    "attachments": [],
+    "expected": {
+      "damage": 0,
+      "headshotMultiplier": 1,
+      "fireRate": 60,
+      "magazine": 1,
+      "reserve": 0,
+      "reloadTime": 1,
+      "adsTime": 0.2,
+      "mobility": 100,
+      "range": {
+        "near": 0,
+        "far": 0,
+        "minDamage": 0
+      },
+      "recoil": {
+        "vertical": 0,
+        "horizontal": 0,
+        "recovery": 0,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 0,
+      "spreadMult": 1,
+      "effects": []
+    }
+  },
+  {
+    "weapon": "knife",
+    "attachments": [
+      "reddot",
+      "compensator"
+    ],
+    "expected": {
+      "damage": 0,
+      "headshotMultiplier": 1,
+      "fireRate": 60,
+      "magazine": 1,
+      "reserve": 0,
+      "reloadTime": 1,
+      "adsTime": 0.19,
+      "mobility": 100,
+      "range": {
+        "near": 0,
+        "far": 0,
+        "minDamage": 0
+      },
+      "recoil": {
+        "vertical": 0,
+        "horizontal": 0,
+        "recovery": 0,
+        "firstShotMult": 1.2
+      },
+      "bulletVelocity": 0,
+      "spreadMult": 1,
+      "effects": []
+    }
+  }
+]

@@ -1,0 +1,52 @@
+[
+  {
+    "id": "gunmetal",
+    "name": "Gunmetal",
+    "color": 2830134
+  },
+  {
+    "id": "desert",
+    "name": "Desert Tan",
+    "color": 12757112
+  },
+  {
+    "id": "woodland",
+    "name": "Woodland",
+    "color": 5208386
+  },
+  {
+    "id": "arctic",
+    "name": "Arctic",
+    "color": 14673903
+  },
+  {
+    "id": "crimson",
+    "name": "Crimson",
+    "color": 11739178
+  },
+  {
+    "id": "azure",
+    "name": "Azure",
+    "color": 2781107
+  },
+  {
+    "id": "gold",
+    "name": "Gold",
+    "color": 13938487
+  },
+  {
+    "id": "neon",
+    "name": "Neon",
+    "color": 3800852
+  },
+  {
+    "id": "violet",
+    "name": "Violet",
+    "color": 8077298
+  },
+  {
+    "id": "orange",
+    "name": "Hazard Orange",
+    "color": 16743168
+  }
+]

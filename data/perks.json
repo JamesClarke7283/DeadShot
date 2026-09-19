@@ -1,0 +1,56 @@
+[
+  {
+    "id": "double_time",
+    "name": "Double Time",
+    "tier": "blue",
+    "description": "Longer sprint, faster crouch."
+  },
+  {
+    "id": "scavenger",
+    "name": "Scavenger",
+    "tier": "blue",
+    "description": "Resupply ammo from the dead."
+  },
+  {
+    "id": "coldblooded",
+    "name": "Cold-Blooded",
+    "tier": "blue",
+    "description": "Undetected by AI targeting."
+  },
+  {
+    "id": "ghost",
+    "name": "Ghost",
+    "tier": "red",
+    "description": "Invisible to enemy UAVs while moving."
+  },
+  {
+    "id": "hardline",
+    "name": "Hardline",
+    "tier": "red",
+    "description": "Streaks cost less score."
+  },
+  {
+    "id": "overkill",
+    "name": "Overkill",
+    "tier": "red",
+    "description": "Two primary weapons."
+  },
+  {
+    "id": "amped",
+    "name": "Amped",
+    "tier": "gold",
+    "description": "Faster weapon swap + launcher reload."
+  },
+  {
+    "id": "high_alert",
+    "name": "High Alert",
+    "tier": "gold",
+    "description": "Vision pulses when seen."
+  },
+  {
+    "id": "tracker",
+    "name": "Tracker",
+    "tier": "gold",
+    "description": "See enemy footsteps."
+  }
+]

@@ -1,16 +1,11 @@
-# Loop runner artifacts
-.loop*
+# Godot 4+ specific ignores
+.godot/
+/android/
+/builds/
 
-# Fetched asset caches (downloaded by `deno task fetch-assets`)
-/public/models/cache
-/public/audio/cache
-
-# OS / editor
-.DS_Store
-*.swp
-
-# Deno
-deno.lock
-
-# Deno Desktop build output
-/dist
+# Local workspace state and generated tool caches
+.codex/
+__pycache__/
+*.py[cod]
+*.blend1
+*.blend2

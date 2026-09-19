@@ -1,0 +1,57 @@
+[
+  {
+    "id": "flashbang",
+    "name": "Flashbang",
+    "category": "tactical"
+  },
+  {
+    "id": "smoke",
+    "name": "Smoke",
+    "category": "tactical"
+  },
+  {
+    "id": "stun",
+    "name": "Stun",
+    "category": "tactical"
+  },
+  {
+    "id": "snapshot",
+    "name": "Snapshot",
+    "category": "tactical"
+  },
+  {
+    "id": "frag",
+    "name": "Frag",
+    "category": "lethal"
+  },
+  {
+    "id": "semtex",
+    "name": "Semtex",
+    "category": "lethal"
+  },
+  {
+    "id": "knife",
+    "name": "Throwing Knife",
+    "category": "lethal"
+  },
+  {
+    "id": "c4",
+    "name": "C4",
+    "category": "lethal"
+  },
+  {
+    "id": "molotov",
+    "name": "Molotov",
+    "category": "lethal"
+  },
+  {
+    "id": "thermite",
+    "name": "Thermite",
+    "category": "lethal"
+  },
+  {
+    "id": "claymore",
+    "name": "Claymore",
+    "category": "lethal"
+  }
+]

@@ -1,0 +1,359 @@
+{
+  "source": "Original DeadShot Synth.ts, WeaponSFX.ts, MusicPlayer.ts rendered in Chromium OfflineAudioContext; no third-party audio",
+  "sampleRate": 44100,
+  "musicBpm": 112,
+  "musicLoopSeconds": 17.142857142857142,
+  "weapons": {
+    "m4": "assault",
+    "ak12": "assault",
+    "scarl": "assault",
+    "m16a4": "assault",
+    "mp5": "smg",
+    "p90": "smg",
+    "uzi": "smg",
+    "vector": "smg",
+    "m249": "lmg",
+    "rpk": "lmg",
+    "mk14": "marksman",
+    "barrett": "sniper",
+    "kar98": "sniper",
+    "spas12": "shotgun",
+    "ksg": "shotgun",
+    "m9": "pistol",
+    "deagle": "pistol",
+    "rpg7": "launcher",
+    "knife": "pistol"
+  },
+  "sounds": {
+    "gun_assault_0": {
+      "file": "res://assets/audio/gun_assault_0.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_assault_1": {
+      "file": "res://assets/audio/gun_assault_1.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_assault_2": {
+      "file": "res://assets/audio/gun_assault_2.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_assault_3": {
+      "file": "res://assets/audio/gun_assault_3.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_smg_0": {
+      "file": "res://assets/audio/gun_smg_0.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_smg_1": {
+      "file": "res://assets/audio/gun_smg_1.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_smg_2": {
+      "file": "res://assets/audio/gun_smg_2.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_smg_3": {
+      "file": "res://assets/audio/gun_smg_3.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_lmg_0": {
+      "file": "res://assets/audio/gun_lmg_0.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_lmg_1": {
+      "file": "res://assets/audio/gun_lmg_1.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_lmg_2": {
+      "file": "res://assets/audio/gun_lmg_2.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_lmg_3": {
+      "file": "res://assets/audio/gun_lmg_3.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_marksman_0": {
+      "file": "res://assets/audio/gun_marksman_0.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_marksman_1": {
+      "file": "res://assets/audio/gun_marksman_1.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_marksman_2": {
+      "file": "res://assets/audio/gun_marksman_2.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_marksman_3": {
+      "file": "res://assets/audio/gun_marksman_3.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_sniper_0": {
+      "file": "res://assets/audio/gun_sniper_0.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_sniper_1": {
+      "file": "res://assets/audio/gun_sniper_1.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_sniper_2": {
+      "file": "res://assets/audio/gun_sniper_2.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_sniper_3": {
+      "file": "res://assets/audio/gun_sniper_3.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_shotgun_0": {
+      "file": "res://assets/audio/gun_shotgun_0.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_shotgun_1": {
+      "file": "res://assets/audio/gun_shotgun_1.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_shotgun_2": {
+      "file": "res://assets/audio/gun_shotgun_2.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_shotgun_3": {
+      "file": "res://assets/audio/gun_shotgun_3.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_pistol_0": {
+      "file": "res://assets/audio/gun_pistol_0.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_pistol_1": {
+      "file": "res://assets/audio/gun_pistol_1.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_pistol_2": {
+      "file": "res://assets/audio/gun_pistol_2.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_pistol_3": {
+      "file": "res://assets/audio/gun_pistol_3.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_launcher_0": {
+      "file": "res://assets/audio/gun_launcher_0.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_launcher_1": {
+      "file": "res://assets/audio/gun_launcher_1.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_launcher_2": {
+      "file": "res://assets/audio/gun_launcher_2.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "gun_launcher_3": {
+      "file": "res://assets/audio/gun_launcher_3.wav",
+      "restoreGain": 1,
+      "frames": 24256,
+      "loop": false
+    },
+    "reload": {
+      "file": "res://assets/audio/reload.wav",
+      "restoreGain": 1,
+      "frames": 8820,
+      "loop": false
+    },
+    "hit": {
+      "file": "res://assets/audio/hit.wav",
+      "restoreGain": 1,
+      "frames": 8820,
+      "loop": false
+    },
+    "headshot": {
+      "file": "res://assets/audio/headshot.wav",
+      "restoreGain": 1,
+      "frames": 8820,
+      "loop": false
+    },
+    "click": {
+      "file": "res://assets/audio/click.wav",
+      "restoreGain": 1,
+      "frames": 8820,
+      "loop": false
+    },
+    "footstep": {
+      "file": "res://assets/audio/footstep.wav",
+      "restoreGain": 1,
+      "frames": 8820,
+      "loop": false
+    },
+    "beep": {
+      "file": "res://assets/audio/beep.wav",
+      "restoreGain": 1,
+      "frames": 8820,
+      "loop": false
+    },
+    "explosion_0.25": {
+      "file": "res://assets/audio/explosion_0.25.wav",
+      "restoreGain": 1,
+      "frames": 26461,
+      "loop": false
+    },
+    "explosion_0.5": {
+      "file": "res://assets/audio/explosion_0.5.wav",
+      "restoreGain": 1.0215637635211556,
+      "frames": 26461,
+      "loop": false
+    },
+    "explosion_0.75": {
+      "file": "res://assets/audio/explosion_0.75.wav",
+      "restoreGain": 1.1559414620302162,
+      "frames": 30319,
+      "loop": false
+    },
+    "explosion_1": {
+      "file": "res://assets/audio/explosion_1.wav",
+      "restoreGain": 1.2668565827973035,
+      "frames": 39690,
+      "loop": false
+    },
+    "explosion_1.25": {
+      "file": "res://assets/audio/explosion_1.25.wav",
+      "restoreGain": 1.2944771319019552,
+      "frames": 49062,
+      "loop": false
+    },
+    "explosion_1.5": {
+      "file": "res://assets/audio/explosion_1.5.wav",
+      "restoreGain": 1.3936556115442393,
+      "frames": 58433,
+      "loop": false
+    },
+    "explosion_1.75": {
+      "file": "res://assets/audio/explosion_1.75.wav",
+      "restoreGain": 1.476695829508256,
+      "frames": 67804,
+      "loop": false
+    },
+    "explosion_2": {
+      "file": "res://assets/audio/explosion_2.wav",
+      "restoreGain": 1.5038851572542775,
+      "frames": 77175,
+      "loop": false
+    },
+    "music_pad": {
+      "file": "res://assets/audio/music_pad.wav",
+      "restoreGain": 1.5105972484666474,
+      "frames": 756000,
+      "loop": true
+    },
+    "music_bass": {
+      "file": "res://assets/audio/music_bass.wav",
+      "restoreGain": 1,
+      "frames": 756000,
+      "loop": true
+    },
+    "music_arp": {
+      "file": "res://assets/audio/music_arp.wav",
+      "restoreGain": 1,
+      "frames": 756000,
+      "loop": true
+    },
+    "music_drums": {
+      "file": "res://assets/audio/music_drums.wav",
+      "restoreGain": 1.1891453850026033,
+      "frames": 756000,
+      "loop": true
+    },
+    "music_drums_hats": {
+      "file": "res://assets/audio/music_drums_hats.wav",
+      "restoreGain": 1,
+      "frames": 756000,
+      "loop": true
+    },
+    "music_drums_kicks": {
+      "file": "res://assets/audio/music_drums_kicks.wav",
+      "restoreGain": 1.0051478536761538,
+      "frames": 756000,
+      "loop": true
+    },
+    "explosion_0.2": {
+      "file": "res://assets/audio/explosion_0.2.wav",
+      "restoreGain": 1,
+      "frames": 26461,
+      "loop": false
+    },
+    "explosion_0.375": {
+      "file": "res://assets/audio/explosion_0.375.wav",
+      "restoreGain": 1,
+      "frames": 26461,
+      "loop": false
+    },
+    "explosion_1.375": {
+      "file": "res://assets/audio/explosion_1.375.wav",
+      "restoreGain": 1.3283024028855928,
+      "frames": 53747,
+      "loop": false
+    }
+  }
+}

@@ -1,0 +1,62 @@
+[
+  {
+    "id": "uav",
+    "name": "UAV",
+    "cost": 500
+  },
+  {
+    "id": "counter_uav",
+    "name": "Counter-UAV",
+    "cost": 600
+  },
+  {
+    "id": "care_package",
+    "name": "Care Package",
+    "cost": 700
+  },
+  {
+    "id": "sentry",
+    "name": "Sentry Gun",
+    "cost": 800
+  },
+  {
+    "id": "rcxd",
+    "name": "RC-XD",
+    "cost": 900
+  },
+  {
+    "id": "predator",
+    "name": "Predator Missile",
+    "cost": 1000
+  },
+  {
+    "id": "attack_heli",
+    "name": "Attack Helicopter",
+    "cost": 1200
+  },
+  {
+    "id": "strafe_run",
+    "name": "Strafe Run",
+    "cost": 1400
+  },
+  {
+    "id": "gunship",
+    "name": "Gunship",
+    "cost": 1600
+  },
+  {
+    "id": "chopper_gunner",
+    "name": "Chopper Gunner",
+    "cost": 1800
+  },
+  {
+    "id": "juggernaut",
+    "name": "Juggernaut",
+    "cost": 2000
+  },
+  {
+    "id": "nuke",
+    "name": "Tactical Nuke",
+    "cost": 3000
+  }
+]

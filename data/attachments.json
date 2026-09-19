@@ -1,0 +1,263 @@
+[
+  {
+    "id": "iron",
+    "name": "Iron Sights",
+    "slot": "optic",
+    "description": "Default sights.",
+    "modifiers": {}
+  },
+  {
+    "id": "reddot",
+    "name": "Red Dot",
+    "slot": "optic",
+    "description": "Clean precision dot.",
+    "modifiers": {
+      "adsMult": 0.95
+    }
+  },
+  {
+    "id": "holo",
+    "name": "Holographic",
+    "slot": "optic",
+    "description": "Wide holographic reticle.",
+    "modifiers": {
+      "adsMult": 0.97,
+      "spreadMult": 0.97
+    }
+  },
+  {
+    "id": "acog",
+    "name": "ACOG Scope",
+    "slot": "optic",
+    "description": "4x magnification for range.",
+    "modifiers": {
+      "rangeMult": 1.15,
+      "adsMult": 1.12,
+      "mobilityAdd": -3
+    }
+  },
+  {
+    "id": "compensator",
+    "name": "Compensator",
+    "slot": "barrel",
+    "description": "Less recoil, slightly less range.",
+    "modifiers": {
+      "recoilMult": 0.8,
+      "rangeMult": 0.9
+    }
+  },
+  {
+    "id": "suppressor",
+    "name": "Suppressor",
+    "slot": "barrel",
+    "description": "Silenced; less range and bullet speed.",
+    "modifiers": {
+      "rangeMult": 0.85,
+      "bulletVelocityMult": 0.9,
+      "mobilityAdd": -2
+    },
+    "effect": "silenced"
+  },
+  {
+    "id": "longbarrel",
+    "name": "Long Barrel",
+    "slot": "barrel",
+    "description": "More range and velocity, less mobile.",
+    "modifiers": {
+      "rangeMult": 1.2,
+      "bulletVelocityMult": 1.15,
+      "mobilityAdd": -4,
+      "adsMult": 1.05
+    }
+  },
+  {
+    "id": "muzzlebrake",
+    "name": "Muzzle Brake",
+    "slot": "barrel",
+    "description": "Tames vertical recoil.",
+    "modifiers": {
+      "recoilMult": 0.85,
+      "recoveryMult": 1.1
+    }
+  },
+  {
+    "id": "extmag",
+    "name": "Extended Mag",
+    "slot": "magazine",
+    "description": "+15 rounds, slower to handle.",
+    "modifiers": {
+      "magazineAdd": 15,
+      "mobilityAdd": -5,
+      "reloadMult": 1.1
+    }
+  },
+  {
+    "id": "fastmag",
+    "name": "Fast Mag",
+    "slot": "magazine",
+    "description": "Quicker reloads.",
+    "modifiers": {
+      "reloadMult": 0.8
+    }
+  },
+  {
+    "id": "fmj",
+    "name": "FMJ",
+    "slot": "magazine",
+    "description": "Hardened rounds: more damage at range.",
+    "modifiers": {
+      "damageMult": 1.05,
+      "rangeMult": 1.05
+    }
+  },
+  {
+    "id": "drum",
+    "name": "Drum Mag",
+    "slot": "magazine",
+    "description": "+40 rounds, heavy.",
+    "modifiers": {
+      "magazineAdd": 40,
+      "mobilityAdd": -10,
+      "reloadMult": 1.25,
+      "adsMult": 1.05
+    }
+  },
+  {
+    "id": "stock_std",
+    "name": "Standard Stock",
+    "slot": "stock",
+    "description": "Balanced.",
+    "modifiers": {}
+  },
+  {
+    "id": "nostock",
+    "name": "No Stock",
+    "slot": "stock",
+    "description": "Fast ADS + mobility, more recoil.",
+    "modifiers": {
+      "adsMult": 0.88,
+      "mobilityAdd": 5,
+      "recoilMult": 1.15
+    }
+  },
+  {
+    "id": "heavystock",
+    "name": "Heavy Stock",
+    "slot": "stock",
+    "description": "Stability at the cost of mobility.",
+    "modifiers": {
+      "recoilMult": 0.85,
+      "mobilityAdd": -4
+    }
+  },
+  {
+    "id": "grip_none",
+    "name": "No Grip",
+    "slot": "grip",
+    "description": "None.",
+    "modifiers": {}
+  },
+  {
+    "id": "foregrip",
+    "name": "Foregrip",
+    "slot": "grip",
+    "description": "Reduces recoil.",
+    "modifiers": {
+      "recoilMult": 0.82
+    }
+  },
+  {
+    "id": "angledgrip",
+    "name": "Angled Grip",
+    "slot": "grip",
+    "description": "Faster ADS.",
+    "modifiers": {
+      "adsMult": 0.85
+    }
+  },
+  {
+    "id": "laser",
+    "name": "Laser Sight",
+    "slot": "grip",
+    "description": "Tighter hipfire.",
+    "modifiers": {
+      "spreadMult": 0.7
+    }
+  },
+  {
+    "id": "perk_none",
+    "name": "No Perk",
+    "slot": "perk",
+    "description": "None.",
+    "modifiers": {}
+  },
+  {
+    "id": "sleightofhand",
+    "name": "Sleight of Hand",
+    "slot": "perk",
+    "description": "Faster reloads.",
+    "modifiers": {
+      "reloadMult": 0.75
+    },
+    "effect": "sleight_of_hand"
+  },
+  {
+    "id": "steadyaim",
+    "name": "Steady Aim",
+    "slot": "perk",
+    "description": "Improved hipfire accuracy.",
+    "modifiers": {
+      "spreadMult": 0.75
+    },
+    "effect": "steady_aim"
+  },
+  {
+    "id": "fullyloaded",
+    "name": "Fully Loaded",
+    "slot": "perk",
+    "description": "Extra reserve ammo.",
+    "modifiers": {
+      "reserveAdd": 60
+    },
+    "effect": "fully_loaded"
+  },
+  {
+    "id": "fu_none",
+    "name": "None",
+    "slot": "fieldUpgrade",
+    "description": "No field upgrade.",
+    "modifiers": {}
+  },
+  {
+    "id": "deadsilence",
+    "name": "Dead Silence",
+    "slot": "fieldUpgrade",
+    "description": "Silent footsteps for a duration.",
+    "modifiers": {},
+    "effect": "dead_silence"
+  },
+  {
+    "id": "trophy",
+    "name": "Trophy System",
+    "slot": "fieldUpgrade",
+    "description": "Destroys incoming explosives.",
+    "modifiers": {},
+    "effect": "trophy"
+  },
+  {
+    "id": "munitions",
+    "name": "Munitions Box",
+    "slot": "fieldUpgrade",
+    "description": "Resupply ammo + equipment.",
+    "modifiers": {},
+    "effect": "munitions"
+  },
+  {
+    "id": "stoppingpower",
+    "name": "Stopping Power",
+    "slot": "fieldUpgrade",
+    "description": "Temporary damage boost.",
+    "modifiers": {},
+    "effect": "stopping_power"
+  }
+]
