@@ -1,5 +1,7 @@
 extends Node
 const Session = preload("res://scripts/game/match_session.gd")
+const QUALITY = preload("res://scripts/world/graphics_quality.gd")
+const MATERIALS = preload("res://scripts/world/map_material.gd")
 var ui
 var game_match
 var audio
@@ -49,6 +51,9 @@ func _ready() -> void:
 		audio.start_music()
 		audio.set_music_intensity(0.0)
 	ui.show_main_menu()
+	# Restore the saved tier before a match builds its materials.
+	QUALITY.set_current(str(ui.store.get_settings().get("graphics", QUALITY.DEFAULT_LEVEL)))
+	QUALITY.apply_viewport(get_viewport())
 	var arguments=OS.get_cmdline_user_args()
 	if "--smoke-match" in arguments:
 		start_match({"mapId":"desert_town","mode":"tdm","botCount":8,"difficulty":"regular","classSlot":0,"hardcore":false})
@@ -328,6 +333,23 @@ func apply_settings(settings: Dictionary) -> void:
 		game_match.player.apply_settings(settings)
 	if audio and audio.has_method("apply_settings"):
 		audio.apply_settings(settings)
+	apply_quality(str(settings.get("graphics", QUALITY.DEFAULT_LEVEL)))
+
+## Rebuilds the material variants and re-applies lighting cost for a new tier.
+## Live geometry is retinted in place so changing the setting does not drop the
+## player out of a match.
+func apply_quality(level: String) -> void:
+	var resolved := QUALITY.set_current(level)
+	QUALITY.apply_viewport(get_viewport(), resolved)
+	# Shader variants are cached per tier inside the quality module and per
+	# (tier, render-mode) pair inside the material factory; both must be dropped
+	# so rebuilt materials compile against the new tier.
+	MATERIALS.clear_variants()
+	if is_instance_valid(game_match):
+		if is_instance_valid(game_match.map):
+			game_match.map.apply_quality(resolved)
+		if game_match.vfx:game_match.vfx.apply_quality(resolved)
+		if is_instance_valid(game_match.player):game_match.player.apply_quality(resolved)
 
 func _weapon_sound(id:String,at:Vector3,local:bool) -> void:
 	if not local:

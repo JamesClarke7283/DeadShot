@@ -187,18 +187,21 @@ func _create_area(item:Dictionary)->void:
 	for i in range(count):
 		var mesh=MeshInstance3D.new()
 		var color=Color("cdd2d8")
-		var emissive=Color.BLACK
+		var energy=0.0
+		var additive=false
 		if item.id=="molotov":
 			color=Color("ff8a1e")
-			emissive=Color("ff4400")
+			energy=3.2
+			additive=true
 		elif item.id=="thermite":
 			color=Color("ffe08a")
-			emissive=Color("ffaa00")
+			energy=4.0
+			additive=true
 		mesh.mesh=VFX.geometry(item.id+"Geo")
 		mesh.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		var linear=color.srgb_to_linear()
-		var emit_linear=emissive.srgb_to_linear()
-		mesh.material_override=Materials.create_material({"color":[linear.r,linear.g,linear.b],"emissive":[emit_linear.r,emit_linear.g,emit_linear.b],"transparent":true,"opacity":0.0 if item.id=="smoke" else (1.0 if item.id=="thermite" else 0.9),"doubleSide":item.id!="thermite"},game_match.map.environment_data)
+		# Smoke reads as a grey cloud rather than an emitter; fire and thermite
+		# emit above the glow threshold.
+		mesh.material_override=(Materials.create_flat(color,0.85) if item.id=="smoke" else Materials.create_unlit(color,energy,1.0 if item.id=="thermite" else 0.9,additive))
 		item.node.add_child(mesh)
 		var base=randf_range(1.4,2.8) if item.id=="smoke" else randf_range(0.3,0.8)
 		if item.id=="smoke":
@@ -238,8 +241,15 @@ func _tick_area(item:Dictionary,dt:float)->void:
 func _set_emissive(root:Node,color:Color,part_name:String)->void:
 	var part=Visuals.part(root,part_name)
 	if part is MeshInstance3D and part.material_override is ShaderMaterial:
+		var material:ShaderMaterial=part.material_override
 		var linear=color.srgb_to_linear()
-		part.material_override.set_shader_parameter("emissive_color",Vector3(linear.r,linear.g,linear.b))
+		# Both the emissive and flat unlit materials drive a `color` uniform; the
+		# realistic surface shader uses its own emissive slot.
+		if material.get_shader_parameter("color")!=null:
+			material.set_shader_parameter("color",Vector3(linear.r,linear.g,linear.b))
+		else:
+			material.set_shader_parameter("emissive_color",Vector3(linear.r,linear.g,linear.b))
+			material.set_shader_parameter("emissive_energy",0.8)
 
 func _spawn_laser(item:Dictionary)->void:
 	var geometry=ImmediateMesh.new()
@@ -250,7 +260,6 @@ func _spawn_laser(item:Dictionary)->void:
 	var laser=MeshInstance3D.new()
 	laser.mesh=geometry
 	laser.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	var linear=Color("ff2a2a").srgb_to_linear()
-	laser.material_override=Materials.create_material({"color":[linear.r,linear.g,linear.b],"unlit":true,"transparent":true,"opacity":0.0},game_match.map.environment_data)
+	laser.material_override=Materials.create_unlit(Color("ff2a2a"),2.5,0.0,true)
 	item.node.add_child(laser)
 	item.laser=laser

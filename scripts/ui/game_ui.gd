@@ -20,6 +20,7 @@ const UI := preload("res://scripts/ui/ui_theme.gd")
 const Store := preload("res://scripts/persistence/save_store.gd")
 const Hud := preload("res://scripts/ui/hud_painter.gd")
 const Touch := preload("res://scripts/ui/touch_controls.gd")
+const GraphicsQuality := preload("res://scripts/world/graphics_quality.gd")
 const MAPS := [
 	{"id": "desert_town", "name": "Desert Town", "description": "Flat sandy town — long main-street sightlines and alley CQB."},
 	{"id": "forest_facility", "name": "Forest Facility", "description": "Rolling forested hills with concrete bunkers and a radar dish — medium-range lanes."},
@@ -430,6 +431,13 @@ func show_options(return_to: String = "main") -> void:
 	_slider(panel, "Music Volume", settings.musicVolume, 0, 1, 0.01, func(value): _setting("musicVolume", value))
 	_slider(panel, "Mouse Sensitivity", settings.sensitivity, 0.1, 3, 0.05, func(value): _setting("sensitivity", value))
 	_slider(panel, "Field of View", settings.fov, 50, 110, 1, func(value): _setting("fov", value))
+	var levels: Array = []
+	for level in GraphicsQuality.LEVELS:
+		levels.append({"id": level, "name": level.capitalize()})
+	var graphics_option := _option(_section(panel, "Graphics"), levels, str(settings.get("graphics", GraphicsQuality.DEFAULT_LEVEL)), func(value): _setting("graphics", value))
+	graphics_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	graphics_option.add_theme_font_size_override("font_size", 16)
+	graphics_option.add_theme_font_override("font", UI.font(600))
 	_check(panel, "INVERT Y", settings.invertY, func(value): _setting("invertY", value))
 	_check(panel, "KILLCAM", settings.killcam, func(value): _setting("killcam", value))
 	var saves := _hbox(panel, 10)
@@ -844,17 +852,29 @@ func _build_preview(parent: Node) -> void:
 	var environment := WorldEnvironment.new()
 	environment.environment = Environment.new()
 	environment.environment.background_mode = Environment.BG_COLOR
-	environment.environment.background_color = Color("0a0d12")
+	environment.environment.background_color = Color("090c11")
+	# Sky ambient so the weapon's metal parts pick up reflected light instead of
+	# reading as black silhouettes against the menu background.
 	environment.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.environment.ambient_light_color = Color("dce8ff")
-	environment.environment.ambient_light_energy = 0.7
+	environment.environment.ambient_light_color = Color("c4d4ee")
+	environment.environment.ambient_light_energy = 1.15
+	environment.environment.tonemap_mode = Environment.TONE_MAPPER_ACES
+	environment.environment.tonemap_exposure = 1.0
+	environment.environment.tonemap_white = 2.0
+	environment.environment.glow_enabled = true
+	environment.environment.glow_intensity = 0.35
+	environment.environment.glow_hdr_threshold = 1.2
 	viewport.add_child(environment)
-	var sun := DirectionalLight3D.new()
-	sun.light_color = Color("fff4e0")
-	# Match Three's 1.8 sun intensity; Godot LIGHT_COLOR includes PI.
-	sun.light_energy = 1.8 / PI
-	viewport.add_child(sun)
-	sun.look_at_from_position(Vector3(0.5, 1, 0.35) * 8.8, Vector3.ZERO)
+	var key := DirectionalLight3D.new()
+	key.light_color = Color("fff4e0")
+	key.light_energy = 2.4
+	viewport.add_child(key)
+	key.look_at_from_position(Vector3(0, 0, 0.4) + Vector3(0.6, 1, 0.5).normalized() * 2.0, Vector3(0, 0, 0))
+	var rim := DirectionalLight3D.new()
+	rim.light_color = Color("9fc4ff")
+	rim.light_energy = 1.4
+	viewport.add_child(rim)
+	rim.look_at_from_position(Vector3(0, 0, 0.4) + Vector3(-0.8, 0.5, 0.6), Vector3(0, 0, 0))
 	preview_camera = Camera3D.new()
 	preview_camera.position = Vector3.ZERO
 	preview_camera.fov = 55
@@ -876,7 +896,29 @@ func _refresh_preview() -> void:
 		var model: Node3D = factory.create_weapon(loadout.primary.weaponId, _camo_color(), loadout.primary.attachments)
 		factory.environment = previous_environment
 		class_preview.add_child(model)
-		model.position = Vector3(0.22, -0.2, -0.55)
+		# Show the weapon's side profile, framed from its real bounds so every
+		# weapon and attachment combination fills the panel consistently.
+		model.rotation.y = PI * 0.5
+		var bounds := _model_bounds(model)
+		var centre := bounds.get_center()
+		var extent := maxf(bounds.size.x, maxf(bounds.size.y, bounds.size.z))
+		var distance := maxf(0.35, extent * 0.85)
+		model.position = Vector3(-centre.x, -centre.y, -centre.z - distance)
+
+func _model_bounds(model: Node) -> AABB:
+	var bounds := AABB()
+	var found := false
+	for child in model.get_children():
+		if child is MeshInstance3D:
+			var box: AABB = child.transform * child.mesh.get_aabb()
+			bounds = box if not found else bounds.merge(box)
+			found = true
+		elif child is Node3D:
+			var nested := _model_bounds(child)
+			if nested.size != Vector3.ZERO or nested.position != Vector3.ZERO:
+				bounds = nested if not found else bounds.merge(nested)
+				found = true
+	return bounds
 
 func _refresh_stats() -> void:
 	if stat_bars.is_empty():

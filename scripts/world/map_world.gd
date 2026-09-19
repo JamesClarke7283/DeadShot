@@ -4,6 +4,7 @@ extends Node3D
 ## Coordinates, colliders, spawns and waypoint graph are kept in source units.
 
 const MATERIALS = preload("res://scripts/world/map_material.gd")
+const QUALITY = preload("res://scripts/world/graphics_quality.gd")
 const MAP_IDS: Array[String] = ["desert_town", "forest_facility", "urban_docks"]
 var map_id: String = ""
 var map_name: String = ""
@@ -18,6 +19,8 @@ var world_environment: WorldEnvironment
 var sun: DirectionalLight3D
 var mesh_instance_count: int = 0
 var _mesh_cache: Dictionary = {}
+var _source_materials: Dictionary = {}
+var _material_hints: Dictionary = {}
 var _materials: Dictionary = {}
 var _wind_materials: Array[ShaderMaterial] = []
 
@@ -41,13 +44,19 @@ func load_map(id: String) -> bool:
 	_build_environment()
 	for key: String in data["geometries"]:
 		_mesh_cache[key] = _make_mesh(data["geometries"][key])
+	# Exported outline hulls are the cartoon look and are dropped entirely, so
+	# they cost neither draw calls nor shadow casters.
+	_source_materials = data["materials"]
 	for key: String in data["materials"]:
-		_materials[key] = MATERIALS.create_material(data["materials"][key], environment_data)
+		if bool(data["materials"][key].get("outline", false)):
+			continue
+		_material_hints[key] = _surface_hint(key, data)
+		_materials[key] = MATERIALS.create_material(data["materials"][key], environment_data, _material_hints[key])
 		if float(data["materials"][key].get("windStrength", 0.0)) > 0.0:
 			_wind_materials.append(_materials[key])
 	var batches: Dictionary = {}
 	for record: Dictionary in data["nodes"]:
-		if not bool(record.get("visible", true)):
+		if not bool(record.get("visible", true)) or bool(data["materials"][record["material"]].get("outline", false)):
 			continue
 		mesh_instance_count += 1
 		if bool(record.get("instanced", false)):
@@ -88,6 +97,30 @@ func load_map(id: String) -> bool:
 				navigation.connect_points(point.id, int(neighbor), false)
 	return true
 
+## Rebuilds every surface material for a new quality tier and re-applies the
+## lighting cost. Existing mesh instances keep their transforms, so this is safe
+## to run mid-match.
+func apply_quality(level: String = "") -> void:
+	var resolved := QUALITY.set_current(level)
+	if world_environment and world_environment.environment:
+		QUALITY.apply_environment(world_environment.environment, sun, resolved)
+	# Re-read the material source table so the rebuild uses the same profiles.
+	if _source_materials.is_empty():
+		return
+	_materials.clear()
+	for key: String in _source_materials:
+		_materials[key] = MATERIALS.create_material(_source_materials[key], environment_data, _material_hints.get(key, ""))
+	_retarget_materials(get_children())
+
+## Walks the tree and points every instance at the rebuilt material for its key.
+func _retarget_materials(nodes: Array) -> void:
+	for node: Node in nodes:
+		if node is MeshInstance3D or node is MultiMeshInstance3D:
+			var key: String = str(node.get_meta("material_key", ""))
+			if _materials.has(key):
+				node.material_override = _materials[key]
+		_retarget_materials(node.get_children())
+
 func clear_map() -> void:
 	for child: Node in get_children():
 		remove_child(child)
@@ -98,6 +131,7 @@ func clear_map() -> void:
 	navigation.clear()
 	_mesh_cache.clear()
 	_materials.clear()
+	_material_hints.clear()
 	_wind_materials.clear()
 	mesh_instance_count = 0
 
@@ -192,6 +226,23 @@ func raycast_boxes(origin: Vector3, direction: Vector3, max_distance: float) -> 
 static func vector_from_array(values: Array) -> Vector3:
 	return Vector3(float(values[0]), float(values[1]), float(values[2]))
 
+## Materials are shared by many nodes, so the surface profile is chosen from the
+## most common node name that uses them rather than from materials alone.
+func _surface_hint(material_key: String, data: Dictionary) -> String:
+	var counts: Dictionary = {}
+	for record: Dictionary in data["nodes"]:
+		if str(record["material"]) != material_key:
+			continue
+		var name := str(record["name"])
+		counts[name] = int(counts.get(name, 0)) + 1
+	var best := ""
+	var best_count := 0
+	for name: String in counts:
+		if int(counts[name]) > best_count:
+			best = name
+			best_count = int(counts[name])
+	return best
+
 static func transform_from_array(values: Array) -> Transform3D:
 	return Transform3D(Basis(Vector3(values[0], values[1], values[2]), Vector3(values[4], values[5], values[6]), Vector3(values[8], values[9], values[10])), Vector3(values[12], values[13], values[14]))
 
@@ -232,6 +283,7 @@ func _add_mesh(record: Dictionary) -> void:
 	instance.name = str(record["name"]).validate_node_name()
 	instance.mesh = _mesh_cache[record["geometry"]]
 	instance.material_override = _materials[record["material"]]
+	instance.set_meta("material_key", record["material"])
 	instance.transform = transform_from_array(record["matrix"])
 	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if bool(record.get("castShadow", false)) else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(instance)
@@ -257,20 +309,12 @@ func _add_instances(records: Array) -> void:
 		multi.set_instance_transform(i, transform_from_array(records[i]["matrix"]))
 	instance.multimesh = multi
 	instance.material_override = _materials[record["material"]]
+	instance.set_meta("material_key", record["material"])
 	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if bool(record.get("castShadow", false)) else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	instance.extra_cull_margin = 0.3
 	add_child(instance)
-	if instance.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_ON and _wind_materials.has(instance.material_override):
-		# Source onBeforeCompile wind only patches the color shader; its default
-		# depth material casts the original unswayed canopy's shadow.
-		instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		var shadow := MultiMeshInstance3D.new()
-		shadow.name = instance.name + "_source_shadow"
-		shadow.multimesh = multi
-		shadow.material_override = instance.material_override.duplicate()
-		shadow.material_override.set_shader_parameter("wind_strength", 0.0)
-		shadow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
-		add_child(shadow)
+	# Foliage now casts its own swaying shadow: the surface shader performs the
+	# same vertex displacement in the shadow pass, so no static proxy is needed.
 
 func _build_bullet_geometry(data: Dictionary) -> void:
 	# Three bullets intersect every visible mesh (including foliage, roof, glass
@@ -313,39 +357,103 @@ func _build_bullet_geometry(data: Dictionary) -> void:
 	add_child(body)
 
 func _build_environment() -> void:
+	# Authoritative lighting comes from the game's authored palette (0xRRGGBB);
+	# the older per-map environment block uses Three's linear values.
+	var authored: Dictionary = environment_data.get("authoredLighting", {})
+	if not authored.is_empty(): environment_data = authored.duplicate()
+	var background := MATERIALS.color_from_array(environment_data.get("background", [0.55, 0.66, 0.8]))
+	var sky_tone := MATERIALS.color_from_array(environment_data.get("skyColor", [0.52, 0.77, 1.0]))
+	var ground_tone := MATERIALS.color_from_array(environment_data.get("groundColor", [0.07, 0.1, 0.04]))
+	var sun_tone := MATERIALS.color_from_array(environment_data.get("sunColor", [1.0, 0.9, 0.75]))
+	# Aerial haze tends toward the sky's own radiance. Using the map's raw fog
+	# colour left fully-fogged distant terrain a different tone from the sky at
+	# the horizon, which read as a hard band across the map edge.
+	var haze := MATERIALS.color_from_array(environment_data.get("fogColor", [0.7, 0.72, 0.75])).lerp(sky_tone, 0.55)
+	environment_data["fogColor"] = [haze.r, haze.g, haze.b]
+
 	world_environment = WorldEnvironment.new()
 	world_environment.name = "MapEnvironment"
 	var environment := Environment.new()
-	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = MATERIALS.color_from_array(environment_data.get("background", [0.5, 0.7, 1])).linear_to_srgb()
-	environment.ambient_light_source = Environment.AMBIENT_SOURCE_DISABLED
-	environment.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
-	# The shared shader applies Three r180's exact ACES transform and fog order.
-	# The source background bypasses tone mapping, so the environment stays linear.
-	environment.tonemap_mode = Environment.TONE_MAPPER_LINEAR
-	environment.tonemap_exposure = 1.0
+	environment.background_mode = Environment.BG_SKY
+	environment.sky = Sky.new()
+	environment.sky.sky_material = ShaderMaterial.new()
+	environment.sky.sky_material.shader = preload("res://scripts/world/sky.gdshader")
+	environment.sky.sky_material.set_shader_parameter("zenith_color", Vector3(sky_tone.r, sky_tone.g, sky_tone.b))
+	environment.sky.sky_material.set_shader_parameter("horizon_color", Vector3(haze.r, haze.g, haze.b))
+	environment.sky.sky_material.set_shader_parameter("ground_color", Vector3(ground_tone.r, ground_tone.g, ground_tone.b))
+	environment.sky.sky_material.set_shader_parameter("sun_color", Vector3(sun_tone.r, sun_tone.g, sun_tone.b))
+	# Sky radiance supplies the specular reflection, but the Compatibility
+	# renderer's sky-sourced ambient is far weaker per unit energy than a colour
+	# ambient and ignores `ambient_light_energy`, which left shaded geometry
+	# reading as black. An explicit ambient built from the map's own sky and
+	# ground tones is predictable and keeps the map's colour cast.
+	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	environment.ambient_light_color = ground_tone.lerp(sky_tone, 0.62).linear_to_srgb()
+	environment.ambient_light_energy = 2.2
+	environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
+	environment.tonemap_exposure = 0.78 * float(environment_data.get("exposure", 1.0))
+	environment.tonemap_white = 4.0
+	# Depth fog supplies the aerial perspective that hides the arena edge and
+	# separates near and far geometry; fog_sky_affect stays at zero so the sky
+	# itself keeps its authored brightness.
+	environment.fog_enabled = true
+	environment.fog_mode = Environment.FOG_MODE_DEPTH
+	environment.fog_light_color = haze.linear_to_srgb()
+	environment.fog_light_energy = 1.0
+	environment.fog_depth_begin = 30.0
+	environment.fog_depth_end = 210.0
+	environment.fog_depth_curve = 1.2
+	environment.fog_sky_affect = 0.0
+	environment.fog_aerial_perspective = 0.0
+	# Screen-space ambient occlusion grounds contact shadows between boxes.
+	environment.ssao_enabled = true
+	environment.ssao_radius = 1.1
+	environment.ssao_intensity = 1.7
+	environment.ssao_power = 1.6
+	environment.ssao_detail = 0.6
+	environment.ssao_light_affect = 0.15
+	environment.ssao_horizon = 0.06
+	environment.ssao_sharpness = 0.98
+	# Glow keeps muzzle flashes and lamps reading as light sources.
+	environment.glow_enabled = true
+	environment.glow_intensity = 0.5
+	environment.glow_bloom = 0.04
+	environment.glow_hdr_threshold = 1.4
+	environment.glow_hdr_scale = 2.0
+	environment.glow_blend_mode = Environment.GLOW_BLEND_MODE_SCREEN
+	# Slightly desaturated and contrastier: the ported palettes are vivid, and a
+	# shooter reads better with a muted, filmic grade.
+	environment.adjustment_enabled = true
+	environment.adjustment_brightness = 1.0
+	environment.adjustment_contrast = 1.1
+	environment.adjustment_saturation = 0.94
 	world_environment.environment = environment
 	add_child(world_environment)
 	sun = DirectionalLight3D.new()
 	sun.name = "Sun"
-	sun.light_color = MATERIALS.color_from_array(environment_data.get("sunColor", [1, 1, 1])).linear_to_srgb()
-	# Godot includes PI in LIGHT_COLOR; Three's toon BRDF divides by PI.
-	sun.light_energy = float(environment_data.get("sunIntensity", 2.2)) / PI
+	# Godot treats RGB light colour as sRGB; the exported tones are linear.
+	sun.light_color = sun_tone.linear_to_srgb()
+	sun.light_energy = float(environment_data.get("sunIntensity", 2.4)) * 0.72
+	# Real PSSM shadows replace the ported single-orthographic Three camera.
 	sun.shadow_enabled = true
-	# Source uses one orthographic 2048px map with a 40m half-frustum.
-	# This native camera-relative coverage best matches source wall snapshots.
-	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
-	sun.directional_shadow_max_distance = 64.0
-	# Three renders opposite material faces into its PCF shadow map.
-	sun.shadow_reverse_cull_face = true
-	sun.shadow_bias = 0.05
-	# Godot normal bias is expressed in shadow texels, unlike Three world units.
-	sun.shadow_normal_bias = 0.8
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
+	sun.directional_shadow_max_distance = 72.0
+	sun.shadow_blur = 1.0
+	sun.shadow_bias = 0.03
+	sun.shadow_normal_bias = 0.7
+	sun.light_angular_distance = 0.6
 	add_child(sun)
 	var direction := vector_from_array(environment_data.get("sunDirection", [0.5, 1.0, 0.35])).normalized()
 	sun.look_at_from_position(direction * 88.0, Vector3.ZERO, Vector3.UP)
-	if DisplayServer.get_name()!="headless":
-		var source_shadow=preload("res://scripts/world/source_shadow.gd").new()
-		source_shadow.direction=direction
-		add_child(source_shadow)
-		sun.shadow_enabled=false
+	environment.sky.sky_material.set_shader_parameter("sun_direction", direction)
+	environment.sky.sky_material.set_shader_parameter("sun_energy", 5.0 if direction.y > 0.35 else 12.0)
+	environment.sky.sky_material.set_shader_parameter("ground_fade", 0.07 if direction.y > 0.35 else 0.11)
+	# A slow horizon->zenith gradient reads as thick haze near eye level and
+	# blends into the depth fog, instead of meeting it at a hard line.
+	environment.sky.sky_material.set_shader_parameter("horizon_softness", 1.0 if direction.y > 0.35 else 1.25)
+	environment.sky.sky_material.set_shader_parameter("ground_mix", 0.06)
+	# The authored values above are the reference look; tiers scale from them so
+	# a lower level reduces cost without re-authoring the lighting.
+	QUALITY.capture_baseline(environment)
+	QUALITY.apply_environment(environment, sun)

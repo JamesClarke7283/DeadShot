@@ -9,9 +9,11 @@ func _initialize() -> void:
 
 func _verify() -> void:
 	var expected := {
-		"desert_town": [258, 81, 471],
-		"forest_facility": [718, 66, 472],
-		"urban_docks": [183, 66, 648],
+		# Visible, non-outline nodes only: the exported cartoon outline hulls are
+		# dropped by the realistic material pass and no longer become meshes.
+		"desert_town": [177, 81, 471],
+		"forest_facility": [655, 66, 472],
+		"urban_docks": [111, 66, 648],
 	}
 	var world = WORLD.new()
 	root.add_child(world)

@@ -1,10 +1,58 @@
 # DeadShot — Godot edition
 
-A native Godot port of DeadShot's cartoon FPS. The project keeps the source game's
-three maps, 18 selectable weapons, ten custom classes, five modes, equipment,
-perks, scorestreaks and multiplayer relay protocol. Blender sources and exported
-GLB models live in `assets/maps` and `assets/models`; gameplay and menus run in
+A native Godot port of DeadShot. The project keeps the source game's three maps,
+18 selectable weapons, ten custom classes, five modes, equipment, perks,
+scorestreaks and multiplayer relay protocol. Blender sources and exported GLB
+models live in `assets/maps` and `assets/models`; gameplay and menus run in
 GDScript without a Deno or Three.js runtime.
+
+## Graphics
+
+The port renders with a realistic material system rather than the original
+cartoon cells. Each surface profile drives world-space triplanar detail and
+normal maps, roughness, metalness, procedural weathering, upward dust
+accumulation and vertical grime streaking on top of the map's exported base
+tones, so the original art direction survives while picking up material
+response. A procedural sky feeds reflected light, the sun casts real PSSM
+shadows, and depth fog, SSAO, ACES tone mapping, glow and a filmic grade
+complete the frame. Muzzle flashes, explosions and lamps are real `OmniLight3D`
+sources rather than painted-on sprites, and the first-person weapon is lit by
+its own camera-mounted rig so it reads as metal rather than a silhouette.
+
+Exported outline hulls are dropped at import, and the ported single-orthographic
+shadow camera has been replaced by the engine's shadow system. See
+`scripts/world/map_material.gd` for the surface profiles and
+`scripts/world/map_world.gd` for the environment.
+
+### Graphics quality
+
+**OPTIONS → GRAPHICS** selects **Low**, **Medium**, **High** (default) or
+**Ultra**. The choice is stored as `settings.graphics` in the save file and
+applies live, without restarting a match. Each tier is one preset in
+`scripts/world/graphics_quality.gd`:
+
+| | Low | Medium | High | Ultra |
+| --- | --- | --- | --- | --- |
+| Surface projection | planar | planar | triplanar | triplanar |
+| Normal map | off | off | on | on |
+| Weathering map | off | on | on | on |
+| Screen-space AO | off | off | on | on |
+| Glow | off | on | on | on |
+| Sun shadow cascades | 1 | 1 | 2 | 4 |
+| MSAA | off | off | 2x | 4x |
+| 3D render scale | 0.8 | 0.9 | 1.0 | 1.0 |
+| Noise texture resolution | 128 | 256 | 256 | 512 |
+| Concurrent VFX lights | 2 | 4 | 8 | 12 |
+| Viewmodel fill and rim | off | off | on | on |
+
+The surface shader carries `QUALITY_*` markers that each tier strips before
+compiling, so a low-tier fragment shader genuinely skips the three-plane
+projection, the normal rebuild and the weathering lookup instead of sampling
+them and discarding the result. `tests/graphics_quality_test.gd` measures every
+tier and asserts the ordering, the stripped work, and that switching tier
+mid-match rebuilds the live materials. On the Intel HD 520 in this workspace low
+renders roughly twice the frame rate of ultra; absolute figures vary with machine
+load, so the test asserts the ordering rather than fixed numbers.
 
 ## Play and develop
 
@@ -18,7 +66,7 @@ godot --path . --editor
 
 Choose **PLAY** to configure map, mode, bots, difficulty, class, hardcore and
 killcam. **CREATE-A-CLASS** edits any of ten saved loadouts; changes save
-immediately. **OPTIONS** controls sensitivity, FOV, volume, invert Y and killcam.
+immediately. **OPTIONS** controls sensitivity, FOV, volume, invert Y, killcam and the graphics tier.
 Import/export buttons transfer the versioned JSON save, including the browser's
 `localStorage["deadshot.save"]` JSON format. Native saves are written atomically
 to Godot's `user://deadshot.save.json`.
@@ -109,6 +157,8 @@ python tools/run_check.py --script scripts/ui/verify_ui.gd
 python tools/run_check.py --script tests/input_gamepad_test.gd
 python tools/run_check.py --script tests/input_console_test.gd
 python tools/run_check.py --script tests/screen_effects_test.gd
+python tools/run_check.py --script tests/graphics_settings_test.gd
+python tools/run_check.py --graphical --script tests/graphics_quality_test.gd
 python tools/run_check.py --script tests/pause_controls_test.gd
 python tools/run_check.py --script tests/net_relay_test.gd
 python tools/run_check.py --script tests/network_lobby.gd

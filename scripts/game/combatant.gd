@@ -3,6 +3,7 @@ extends Node3D
 const Weapon = preload("res://scripts/game/weapon_runtime.gd")
 const Data = preload("res://scripts/core/game_data.gd")
 const Visuals = preload("res://scripts/visuals/visual_factory.gd")
+const QUALITY = preload("res://scripts/world/graphics_quality.gd")
 const STANCES = [
 	{"eye": 0.45, "body": 0.35, "height": 0.6, "speed": 0.22},
 	{"eye": 1.0, "body": 0.65, "height": 1.2, "speed": 0.5},
@@ -24,6 +25,11 @@ var weapons: Array = []
 var current_slot: int = 0
 var camera: Camera3D
 var viewmodel: Node3D
+## Viewmodel light rig. The weapon is close to the camera, so world lighting
+## alone leaves it an unreadable silhouette: AAA shooters light the viewmodel
+## separately. These lights ride with the camera, which keeps the rig stable in
+## world space and means it needs no per-material or per-mesh special casing.
+var viewmodel_rig: Node3D
 var human: Node3D
 var brain
 var game_match
@@ -70,9 +76,11 @@ func setup(id_value: int, team_value: String, player_control: bool, loadout: Dic
 		camera.near = 0.05
 		camera.far = 2000
 		camera.keep_aspect = Camera3D.KEEP_HEIGHT
+		camera.cull_mask = 1 | (1 << (QUALITY.VIEWMODEL_LAYER - 1))
 		camera.position.y = eye_height
 		add_child(camera)
 		camera.make_current()
+		_build_viewmodel_rig()
 	else:
 		eye_height = 1.6
 		var Brain = load("res://scripts/game/bot_brain.gd")
@@ -102,6 +110,7 @@ func refresh_visuals() -> void:
 			knife_visible=Visuals.part(viewmodel,"knife").visible
 			viewmodel.free()
 		viewmodel = factory.create_weapon(str(weapon.definition.id), camo_color, weapon.attachments)
+		_set_render_layer(viewmodel, QUALITY.VIEWMODEL_LAYER)
 		camera.add_child(viewmodel)
 		viewmodel.transform=old_root
 		viewmodel.visible=was_visible
@@ -113,6 +122,66 @@ func refresh_visuals() -> void:
 	elif not is_instance_valid(human):
 		human = factory.create_human(team, maxi(0, actor_id - 1) if accent_index < 0 else accent_index)
 		add_child(human)
+
+## Key from the upper left, a cool fill from the opposite side to keep the
+## shadowed face readable, and a tight rim behind the shooter so the weapon edge
+## separates from the background. All unshadowed: the rig is only a few tens of
+## centimetres deep, so shadowing it would cost far more than it could show.
+func _build_viewmodel_rig() -> void:
+	viewmodel_rig = Node3D.new()
+	viewmodel_rig.name = "ViewmodelRig"
+	camera.add_child(viewmodel_rig)
+	var key := OmniLight3D.new()
+	key.name = "ViewmodelKey"
+	key.light_color = Color("fff1dc")
+	key.light_energy = 1.7
+	key.omni_range = 2.2
+	key.omni_attenuation = 1.2
+	key.shadow_enabled = false
+	key.light_cull_mask = 1 << (QUALITY.VIEWMODEL_LAYER - 1)
+	key.position = Vector3(-0.55, 0.85, 0.35)
+	viewmodel_rig.add_child(key)
+	var fill := OmniLight3D.new()
+	fill.name = "ViewmodelFill"
+	fill.light_color = Color("a9c6ee")
+	fill.light_energy = 0.85
+	fill.omni_range = 2.4
+	fill.omni_attenuation = 1.2
+	fill.shadow_enabled = false
+	fill.light_cull_mask = 1 << (QUALITY.VIEWMODEL_LAYER - 1)
+	fill.position = Vector3(0.75, -0.35, 0.15)
+	viewmodel_rig.add_child(fill)
+	var rim := OmniLight3D.new()
+	rim.name = "ViewmodelRim"
+	rim.light_color = Color("ffe6c0")
+	rim.light_energy = 1.4
+	rim.omni_range = 2.0
+	rim.omni_attenuation = 1.4
+	rim.shadow_enabled = false
+	rim.light_cull_mask = 1 << (QUALITY.VIEWMODEL_LAYER - 1)
+	rim.position = Vector3(0.15, 0.45, -1.4)
+	viewmodel_rig.add_child(rim)
+
+## Moves a model's meshes onto the viewmodel layer, which is what keeps the
+## camera-mounted rig from lighting the world as well as the weapon.
+func _set_render_layer(node: Node, layer: int) -> void:
+	if node is MeshInstance3D:
+		node.layers = 1 << (layer - 1)
+	for child in node.get_children():
+		_set_render_layer(child, layer)
+
+## The rig is the only lighting the player can see on their own weapon, so every
+## tier keeps the key light; the cheaper tiers drop the fill and rim, which are
+## the two lights whose contribution is least missed at speed.
+func apply_quality(level: String = "") -> void:
+	if not is_instance_valid(viewmodel_rig):
+		return
+	var resolved := QUALITY.normalize(level if not level.is_empty() else QUALITY.current())
+	var fill := viewmodel_rig.get_node_or_null("ViewmodelFill")
+	var rim := viewmodel_rig.get_node_or_null("ViewmodelRim")
+	var full := resolved in ["high", "ultra"]
+	if fill: fill.visible = full
+	if rim: rim.visible = full
 
 func apply_settings(value: Dictionary) -> void:
 	settings = value

@@ -52,7 +52,9 @@ func _tick_domination(dt: float) -> void:
 		if owner != point.owner:
 			point.owner = owner
 			var color := Color.hex(BLUE if owner == "blue" else RED if owner == "red" else NEUTRAL).srgb_to_linear()
-			point.disc.material_override.set_shader_parameter("base_color", Vector3(color.r, color.g, color.b))
+			# Retint the disc's own material; the realistic shader reads its base
+			# tone from `albedo_color`, and the disc keeps its concrete response.
+			MATERIALS.retint(point.disc.material_override, color)
 	tick_accumulator += dt
 	while tick_accumulator >= 1.0:
 		tick_accumulator -= 1.0
@@ -179,12 +181,11 @@ func _build_domination() -> void:
 	for index in range(3):
 		var z: float = bounds.minZ + span_z * [0.28, 0.5, 0.72][index]
 		var y: float = game_match.map.height_at(center_x, z)
-		var disc := _cylinder(DOM_RADIUS, 0.2, 24, NEUTRAL, 0x1a1d22ff)
+		var disc := _cylinder(DOM_RADIUS, 0.2, 24, NEUTRAL, 0x1a1d22ff, "concrete")
 		disc.position = Vector3(center_x, y + 0.1, z)
 		add_child(disc)
 		var pole := _cylinder(0.12, 3.0, 8, 0x20242bff)
 		pole.position = Vector3(center_x, y + 1.6, z)
-		_outline(pole)
 		add_child(pole)
 		points.append({"label": ["A", "B", "C"][index], "x": center_x, "z": z, "progress": 0.0, "owner": "neutral", "disc": disc})
 
@@ -204,15 +205,14 @@ func _build_flags() -> void:
 		var box := BoxMesh.new()
 		box.size = Vector3(1.1, 0.7, 0.06)
 		cloth.mesh = box
-		cloth.material_override = _material(BLUE if team == "blue" else RED, 0x101418ff)
+		cloth.material_override = _material(BLUE if team == "blue" else RED, 0x101418ff, "fabric")
 		cloth.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		cloth.position = Vector3(0.6, 2.4, 0.0)
-		_outline(cloth)
 		group.add_child(cloth)
 		add_child(group)
 		flags.append({"team": team, "home": home, "pos": home, "status": "home", "carrier": -1, "group": group})
 
-func _cylinder(radius: float, height: float, segments: int, color: int, emissive: int = 0x000000ff) -> MeshInstance3D:
+func _cylinder(radius: float, height: float, segments: int, color: int, emissive: int = 0x000000ff, surface: String = "painted_metal") -> MeshInstance3D:
 	var mesh := CylinderMesh.new()
 	mesh.top_radius = radius
 	mesh.bottom_radius = radius
@@ -221,18 +221,11 @@ func _cylinder(radius: float, height: float, segments: int, color: int, emissive
 	mesh.rings = 1
 	var instance := MeshInstance3D.new()
 	instance.mesh = mesh
-	instance.material_override = _material(color, emissive)
+	instance.material_override = _material(color, emissive, surface)
 	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	return instance
 
-func _material(color: int, emissive: int = 0x000000ff) -> ShaderMaterial:
+func _material(color: int, emissive: int = 0x000000ff, surface: String = "painted_metal") -> ShaderMaterial:
 	var base := Color.hex(color).srgb_to_linear()
 	var glow := Color.hex(emissive).srgb_to_linear()
-	return MATERIALS.create_material({"color": [base.r, base.g, base.b], "emissive": [glow.r, glow.g, glow.b]}, game_match.map.environment_data)
-
-func _outline(mesh: MeshInstance3D) -> void:
-	var hull := MeshInstance3D.new()
-	hull.mesh = mesh.mesh
-	hull.material_override = MATERIALS.create_material({"outline": true, "thickness": 0.03})
-	hull.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	mesh.add_child(hull)
+	return MATERIALS.create_material({"color": [base.r, base.g, base.b], "emissive": [glow.r, glow.g, glow.b], "surface": surface}, game_match.map.environment_data)

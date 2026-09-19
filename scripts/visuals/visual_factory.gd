@@ -7,6 +7,37 @@ const Materials = preload("res://scripts/world/map_material.gd")
 const FFA_COLORS := [0x9b5de5ff, 0xf15bb5ff, 0x00bbf9ff, 0x00f5d4ff, 0xfee440ff, 0xff7b00ff, 0x06d6a0ff, 0xef476fff, 0x118ab2ff, 0xffd166ff, 0x8338ecff, 0x3a86ffff, 0xfb5607ff, 0x2ec4b6ff, 0xe71d36ff, 0x8ac926ff]
 const HIP_POSITION := Vector3(0.22, -0.2, -0.55)
 const ADS_POSITION := Vector3(0, -0.13, -0.4)
+
+## Surfaces for Blender models. Every model is built from generic `part_N`,
+## `outline_N` and named pivot nodes, so the material's tint plus the owning
+## asset decide the response: weapons are blued steel and polymer, characters are
+## cloth, skin and webbing, and props read as painted metal or timber.
+const MODEL_SURFACES := {
+	"weapon": "gun_metal",
+	"attachment": "gun_metal",
+	"human": "cloth",
+	"equipment": "painted_metal",
+	"care_crate": "wood",
+	"streak": "painted_metal",
+}
+
+## The exported weapon palette is mostly near-black (receiver, magazine, sights)
+## with a few brighter warm parts (wooden furniture, grip panels) and one bright
+## neutral part (optic glass/rail). Each maps to a different real material.
+static func _weapon_surface(base: Color) -> String:
+	var brightest := maxf(base.r, maxf(base.g, base.b))
+	if brightest > 0.4:
+		return "wood" if base.r > base.b * 1.3 else "metal"
+	return "polymer" if brightest > 0.03 else "gun_metal"
+
+static func _character_surface(node_name: String, base: Color) -> String:
+	if node_name.contains("head") or node_name.contains("face"):
+		return "skin"
+	if base.r > base.b * 1.6 and base.r > 0.2:
+		# The exported skin tone is the only warm, mid-bright part tone.
+		return "skin"
+	return "cloth"
+
 static var environment: Dictionary = {}
 static var _manifest: Dictionary = {}
 static var _scenes: Dictionary = {}
@@ -45,14 +76,26 @@ static func create_model(id: String) -> Node3D:
 	result.set_meta("visual_parts", parts)
 	result.set_meta("model_id", id)
 	if id == "rocket":
-		var glow := preload("res://scripts/visuals/source_point_light.gd").new()
+		# A real light plus an emissive plume, so the rocket actually reads as lit.
+		var glow := OmniLight3D.new()
 		glow.name = "EngineGlow"
 		glow.position.z = -0.3
 		glow.light_color = Color("ffa040")
-		glow.light_energy = 2.0
-		glow.omni_range = 6.0
+		glow.light_energy = 3.0
+		glow.omni_range = 7.0
 		glow.omni_attenuation = 2.0
+		glow.shadow_enabled = false
 		result.add_child(glow)
+		var plume := MeshInstance3D.new()
+		plume.name = "EnginePlume"
+		var plume_mesh := SphereMesh.new()
+		plume_mesh.radius = 0.12
+		plume_mesh.height = 0.3
+		plume.mesh = plume_mesh
+		plume.position.z = -0.34
+		plume.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		plume.material_override = Materials.create_unlit(Color("ffc070"), 8.0, 1.0, true)
+		result.add_child(plume)
 	return result
 
 static func _configure_tree(node: Node, model_id: String, records: Dictionary, parts: Dictionary) -> void:
@@ -60,6 +103,11 @@ static func _configure_tree(node: Node, model_id: String, records: Dictionary, p
 	# Blender's names are prefixed per asset so the complete .blend library can
 	# retain named pivots without any automatic .001 suffixes.
 	node.name = original
+	if node is MeshInstance3D and original.begins_with("outline"):
+		# Baked cartoon outline hulls are dropped with the rest of the toon look.
+		node.visible = false
+		node.queue_free()
+		return
 	parts[original] = node
 	var record: Dictionary = records.get(original, {})
 	if node is Node3D:
@@ -67,23 +115,26 @@ static func _configure_tree(node: Node, model_id: String, records: Dictionary, p
 	if node is MeshInstance3D and record.has("material"):
 		var source: Dictionary = _catalog().materials[record.material].duplicate(true)
 		var role: String = source.get("role", "")
+		var surface := _surface_for(model_id, original, source)
+		source.surface = surface
 		node.set_meta("material_source", source.duplicate(true))
 		node.set_meta("material_role", role)
-		# The Blender source bakes and reverses outline hull triangles. Apply only
-		# their unlit color here; extruding the hull again would thicken outlines.
-		if source.get("outline", false):
-			source.outline = false
-			source.unlit = true
-			source.rawUnlit = true
-			source.thickness = 0.0
 		node.material_override = Materials.create_material(source, environment)
-		node.material_override.set_shader_parameter("receive_shadows", false)
-		if node.get_meta("material_source").get("outline", false):
-			node.material_override.set_shader_parameter("fog_near", 1.0e12)
-			node.material_override.set_shader_parameter("fog_far", 2.0e12)
 		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if record.get("castShadow", false) else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	for child in node.get_children():
 		_configure_tree(child, model_id, records, parts)
+
+static func _surface_for(model_id: String, node_name: String, source: Dictionary) -> String:
+	var base := Materials.color_from_array(source.get("color", []), Color(0.5, 0.5, 0.5))
+	var family := model_id.get_slice("_", 0)
+	match family:
+		"weapon", "attachment":
+			return _weapon_surface(base)
+		"human":
+			return _character_surface(node_name, base)
+		"equipment", "streak", "care":
+			return "painted_metal"
+	return str(MODEL_SURFACES.get(family, "generic"))
 
 static func create_human(team: String = "ffa", accent_index: int = 0) -> Node3D:
 	var result := create_model("human_" + (team if team in ["blue", "red", "ffa"] else "ffa"))
@@ -105,11 +156,13 @@ static func set_camo(root: Node3D, camo: Color) -> void:
 
 static func _tint_role(node: Node, role: String, color: Color) -> void:
 	if node is MeshInstance3D and node.get_meta("material_role", "") == role:
-		var source: Dictionary = node.get_meta("material_source").duplicate(true)
+		var source: Dictionary = node.get_meta("material_source")
 		var linear := color.srgb_to_linear()
 		source.color = [linear.r, linear.g, linear.b]
+		# Rebuild at full opacity: these parts are solid team/camo surfaces.
+		source.transparent = false
+		source.opacity = 1.0
 		node.material_override = Materials.create_material(source, environment)
-		node.material_override.set_shader_parameter("receive_shadows", false)
 	for child in node.get_children():
 		_tint_role(child, role, color)
 

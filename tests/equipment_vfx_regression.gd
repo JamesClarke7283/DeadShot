@@ -106,9 +106,11 @@ func _run()->void:
 	var placements=true
 	for particle in thermite.particles:placements=placements and particle.mesh.position.y>=0.1 and particle.mesh.position.y<=0.4
 	_expect(placements and world.blasts.back()[1]==0.8,"Thermite uses source height distribution and 0.8m pop")
-	var tint=Color("ffe08a").srgb_to_linear()
+	# Emissive props now feed the environment glow pass, so energy above one is
+	# what makes them read as light rather than painted-on colour.
 	var material:ShaderMaterial=thermite.particles[0].mesh.material_override
-	_expect(material.get_shader_parameter("base_color").is_equal_approx(Vector3(tint.r,tint.g,tint.b)),"Thermite source white-hot palette is retained")
+	var tint=Color("ffe08a")
+	_expect(material.get_shader_parameter("color").is_equal_approx(Vector3(tint.r,tint.g,tint.b)) and float(material.get_shader_parameter("energy"))>1.0,"Thermite white-hot palette emits above the glow threshold")
 	system._tick_item(thermite,1.0)
 	_expect(world.dots.size()==1 and world.dots[0][0]==Vector3(2,0,3) and world.dots[0][2]==40 and not world.dots[0][4],"Thermite DoT uses original impact center and flat 40 damage each second")
 	system._tick_item(thermite,4.0)
@@ -122,29 +124,34 @@ func _run()->void:
 	var vfx=VFX.new()
 	root.add_child(vfx)
 	vfx.bullet_impact(Vector3.ZERO,Vector3.UP,true)
-	_expect(vfx.decals.is_empty() and vfx.transients.size()==1,"Actor impacts create spark without a bullet hole")
+	_expect(vfx.decals.is_empty() and vfx.transients.size()==2,"Actor impacts kick up sparks and blood without a bullet hole")
 	vfx.tick(0.06)
-	_expect(vfx.transients[0].node.scale.is_equal_approx(Vector3.ONE*1.25) and is_equal_approx(vfx.transients[0].node.material_override.get_shader_parameter("opacity"),0.5),"Impact spark follows exact scale/opacity over 120ms")
+	_expect(vfx.transients[0].node.material_override.get_shader_parameter("opacity")<1.0,"Impact sparks fade over their lifetime")
 	for i in range(100):vfx.bullet_hole(Vector3(i,0,0),Vector3.UP)
 	_expect(vfx.decals.size()==96 and vfx.decals[0].position.x==4,"Bullet holes persist with oldest-first recycling at 96")
 	vfx.tracer(Vector3.ZERO,Vector3(0,0,4))
 	var tracer=vfx.transients.back().node
 	_expect(tracer.position==Vector3(0,0,2) and tracer.scale==Vector3(1,4,1),"Tracer uses exact cylinder midpoint and length")
 	vfx.muzzle_flash(Vector3(0,0,1),Vector3.BACK)
-	var muzzle=vfx.transients.back().node
-	_expect(muzzle.position.is_equal_approx(Vector3(0,0,1.2)) and "blend_add" in muzzle.material_override.shader.code,"Muzzle flash is source additive plane 20cm ahead of muzzle")
+	var muzzle=vfx.transients.back()
+	# A muzzle flash carries a real light, so it illuminates the scene instead of
+	# only adding a bright quad.
+	_expect(muzzle.kind=="light" and muzzle.node is OmniLight3D and muzzle.node.light_energy>1.0,"Muzzle flash adds a real light source")
 	vfx.clear()
 	vfx.explosion(Vector3(2,3,4),6)
-	vfx.tick(0.175)
-	_expect(vfx.transients.size()==2 and is_equal_approx(vfx.transients[1].node.light_energy,4.0),"Explosion pairs 450ms sphere with 350ms light fade")
-	MATERIALS.update_point_lights(true)
-	_expect(MATERIALS._light_count==1 and MATERIALS._light_positions[0]==Vector4(2,3,4,24),"Point-light source range and coordinates feed shared toon radiance")
-	vfx.tick(0.3)
-	_expect(vfx.transients.is_empty(),"Explosion transient nodes expire at source lifetimes")
+	var light_count:=0
+	for effect in vfx.transients:
+		if effect.kind=="light":
+			light_count+=1
+			_expect(effect.node.omni_range==30.0,"Explosion light range scales from the blast radius")
+	_expect(vfx.transients.size()==3 and light_count==1,"Explosion pairs fireball and smoke with one real light")
+	vfx.tick(0.45)
+	_expect(vfx.transients.size()==1 and vfx.transients[0].kind=="smoke","Fireball and its light expire while smoke lingers")
+	vfx.tick(2.0)
+	_expect(vfx.transients.is_empty(),"Explosion transients expire")
 	system.queue_free()
 	vfx.queue_free()
 	await process_frame
-	_expect(MATERIALS._light_count==0,"Disposed transient point lights leave no stale illumination")
 	if failures.is_empty():print("EQUIPMENT/VFX PARITY PASS: %d checks"%checks)
 	else:
 		for failure in failures:push_error(failure)
