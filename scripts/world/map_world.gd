@@ -226,6 +226,17 @@ func raycast_boxes(origin: Vector3, direction: Vector3, max_distance: float) -> 
 static func vector_from_array(values: Array) -> Vector3:
 	return Vector3(float(values[0]), float(values[1]), float(values[2]))
 
+## The authored palettes pack colours as `0xRRGGBB` integers; the surface and sky
+## code reads linear `[r, g, b]` arrays. Arrays pass through unchanged so both
+## encodings work.
+static func _color_array(value: Variant) -> Array:
+	if value is Array:
+		return value
+	if value is int or value is float:
+		var color := Color(int(value))
+		return [color.r, color.g, color.b]
+	return value
+
 ## Materials are shared by many nodes, so the surface profile is chosen from the
 ## most common node name that uses them rather than from materials alone.
 func _surface_hint(material_key: String, data: Dictionary) -> String:
@@ -357,10 +368,17 @@ func _build_bullet_geometry(data: Dictionary) -> void:
 	add_child(body)
 
 func _build_environment() -> void:
-	# Authoritative lighting comes from the game's authored palette (0xRRGGBB);
-	# the older per-map environment block uses Three's linear values.
+	# The authored palette (packed 0xRRGGBB) is authoritative for the keys it
+	# defines, and the per-map environment block (Three's linear values) supplies
+	# the rest — notably `fogColor` and `background`, which the authored palette
+	# does not carry. Replacing the block outright discarded that authored haze
+	# and fell back to a generic cool grey fog on every map.
 	var authored: Dictionary = environment_data.get("authoredLighting", {})
-	if not authored.is_empty(): environment_data = authored.duplicate()
+	if not authored.is_empty():
+		var merged: Dictionary = environment_data.duplicate()
+		for key in authored:
+			merged[key] = _color_array(authored[key]) if key in ["skyColor", "groundColor", "sunColor"] else authored[key]
+		environment_data = merged
 	var background := MATERIALS.color_from_array(environment_data.get("background", [0.55, 0.66, 0.8]))
 	var sky_tone := MATERIALS.color_from_array(environment_data.get("skyColor", [0.52, 0.77, 1.0]))
 	var ground_tone := MATERIALS.color_from_array(environment_data.get("groundColor", [0.07, 0.1, 0.04]))

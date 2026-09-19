@@ -24,6 +24,44 @@ shadow camera has been replaced by the engine's shadow system. See
 `scripts/world/map_material.gd` for the surface profiles and
 `scripts/world/map_world.gd` for the environment.
 
+### Geometry
+
+Shading alone does not make a blockout read as a real object, so every
+player-facing asset is rebuilt as detailed geometry rather than the stacked
+boxes the ported export contained:
+
+| Asset | Before | After |
+| --- | ---: | ---: |
+| Assault rifle (viewmodel) | 192 tris | 6 200 tris |
+| Sniper rifle | 192 tris | 6 372 tris |
+| Pistol | 168 tris | 2 442 tris |
+| Soldier (each team) | 2 728 tris | 6 092 tris |
+| Sentry turret | 2 452 tris | 1 496 tris |
+| Recon UAV | 424 tris | 660 tris |
+
+A rifle is assembled from its real sub-assemblies — receiver, bolt carrier and
+charging handle, M-LOK handguard, gas block, barrel, muzzle device, iron sights,
+rail, magazine, trigger group, pistol grip, buffer tube and stock — and a
+soldier from a sculpted torso, plate carrier, pouches, helmet, goggles, gloved
+hands, knee pads and boots. The maps gain the parapets, plinths, window frames,
+glazing and downpipes the ported blockout omitted, and the authored props gain
+their own detail — wheel arches, bumpers and lamps on every vehicle, cabin
+glazing, lattice bracing and operator cabs on the cranes, pitched canopies over
+the market stalls, curved reflectors on the radar dishes — without disturbing a
+single authored collision box, spawn pad or navigation edge.
+
+The models are generated procedurally in metres by `tools/deadshot_weapons.py`,
+`tools/deadshot_characters.py` and `tools/deadshot_props.py` over the shared
+`tools/deadshot_detail.py` mesh DSL, then exported through Blender exactly as
+the ported assets were. `assets/models/source/README.md` documents the pipeline,
+the named animation pivots each builder preserves, and how to regenerate.
+`tools/snapshot_assets.gd` renders every asset through the real material system
+to `assets/models/previews_*.png` for review.
+
+The map detail pass is `tools/deadshot_enrich_maps.py`; it is purely additive, so
+`MapWorld` still builds the same world and the exported gameplay data is
+unchanged.
+
 ### Graphics quality
 
 **OPTIONS → GRAPHICS** selects **Low**, **Medium**, **High** (default) or
@@ -50,9 +88,20 @@ compiling, so a low-tier fragment shader genuinely skips the three-plane
 projection, the normal rebuild and the weathering lookup instead of sampling
 them and discarding the result. `tests/graphics_quality_test.gd` measures every
 tier and asserts the ordering, the stripped work, and that switching tier
-mid-match rebuilds the live materials. On the Intel HD 520 in this workspace low
-renders roughly twice the frame rate of ultra; absolute figures vary with machine
-load, so the test asserts the ordering rather than fixed numbers.
+mid-match rebuilds the live materials.
+
+The test disables vsync, isolates render work from bot simulation, and measures
+at 2560x1440 with the fastest of several timing batches per tier. Every tier
+renders comfortably above the 60 Hz present interval, so with vsync on all four
+levels measure as 60 fps and the ordering assertion ends up testing the refresh
+rate instead of the tier's cost. Ticking the match inside the timed loop let the
+eight bot planners' shared CPU cost dominate the wall clock, and at 1280x720 the
+tiers differ by single-digit percent, which is inside run-to-run noise; measuring
+presentation only, at four times the pixel count, scales the work each tier
+actually controls and turns that difference into a margin several times the
+noise. The draw-call and shader-variant assertions confirm which work each tier
+paid for. Absolute figures vary with machine load, so the test asserts the
+ordering rather than fixed numbers.
 
 ## Play and develop
 
@@ -162,6 +211,9 @@ python tools/run_check.py --graphical --script tests/graphics_quality_test.gd
 python tools/run_check.py --script tests/pause_controls_test.gd
 python tools/run_check.py --script tests/net_relay_test.gd
 python tools/run_check.py --script tests/network_lobby.gd
+python tools/run_check.py --script scripts/world/verify_maps.gd
+python tools/run_check.py --script tools/blender_verify_models.gd
+python tools/run_check.py --graphical --script tools/snapshot_assets.gd
 python tools/run_check.py --graphical --script tools/ui_snapshot.gd
 ```
 

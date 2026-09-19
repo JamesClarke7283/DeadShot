@@ -1,29 +1,68 @@
 # Editable Blender sources
 
-`models.blend` contains one scene per source model. The library includes team humanoids with facial
-details, all weapon category models and the held knife, every attachment with visible source
-geometry, all scorestreak vehicles, the care-package crate, and all 11 thrown equipment models.
-Every original weapon ID maps to its original category geometry in `../manifest.json`.
+`models.blend` contains one scene per source model. The library includes team humanoids with
+facial details, all weapon category models and the held knife, every attachment with visible
+source geometry, all scorestreak vehicles, the care-package crate, and all 11 thrown equipment
+models. Every original weapon ID maps to its original category geometry in `../manifest.json`.
 
-The 138 GLBs are produced by Blender from the original Three.js BufferGeometry, vertex normals, UVs,
-material colors, and local matrices in `models.json`. Blender authoring is Z-up; GLB export returns
-to the original Y-up coordinates. Animation pivots retain their source hierarchy, and inverted
-outline hulls are baked as editable extruded, reversed-winding meshes. Godot restores the source
-toon shader and named animation pivots through `scripts/visuals/visual_factory.gd`.
+The 138 GLBs are produced by Blender from the geometry, vertex normals and local matrices in
+`models.json`. Blender authoring is Z-up; GLB export returns to the original Y-up coordinates.
+Animation pivots retain their source hierarchy. Godot builds the named animation pivots and the
+realistic surface materials through `scripts/visuals/visual_factory.gd`.
 
-Rebuild from the Godot project directory:
+## Regenerating
+
+`models.json` is generated, not hand-edited. `models_ported.json` preserves the original ported
+Three.js export that the detail builders replace, and is used as the fallback source for every
+asset that has no builder of its own.
 
 ```sh
-deno run -A --config ../DeadShot/deno.json tools/export_models.ts
+python tools/deadshot_rebuild_models.py
 blender --background --factory-startup --python tools/blender_build_models.py
+godot --headless --path . --import
 python tools/run_check.py --script tools/blender_verify_models.gd
 ```
 
-The build runs in a separate Blender process and never modifies an open user scene. The same build
-produces editable map sources in `assets/maps/*.blend`. Those maps render from their original
-geometry JSON in Godot so foliage wind and instancing remain native. These source folders are
-ignored by Godot's importer; the exported GLBs are the runtime assets.
+`deadshot_rebuild_models.py` rewrites `models.json` from the builders and keeps the ported
+geometry for anything they do not cover, so the two never drift. It reads that fallback from
+`models_ported.json`, and only writes that file when it is absent — so delete it before a first
+run and it captures whatever `models.json` currently holds, losing the ported source. Keep it
+under version control.
 
-Verified: every imported hierarchy node and material, all source weapon IDs, animation pivots and
-formulas, and outline visibility with a real renderer. Whole-game visual comparison remains a
-separate migration acceptance step.
+## Detail builders
+
+Weapons, attachments, characters and props are generated procedurally in metres, with +Y up, by:
+
+| Module | Covers | Detail |
+| --- | --- | --- |
+| `deadshot_detail.py` | shared DSL | sweeping, extrusion, chamfers, smooth-shaded tubes |
+| `deadshot_weapons.py` | 9 categories, all attachments | 168–192 tris → 2400–6400 tris |
+| `deadshot_characters.py` | `human_blue`, `human_red`, `human_ffa` | 2728 tris → 6092 tris |
+| `deadshot_props.py` | scorestreaks, equipment, pickups, rocket | 84–2728 tris → 180–1500 tris |
+
+Each asset keeps the named pivots the gameplay code drives: `gun`, `muzzle` and `knife` on every
+weapon; `hips`, `head`, `face`, `headband` and the four limb joints on characters; `rotor`,
+`mainRotor`, `tailRotor` and the sentry's `gun` on the streaks. `VisualFactory.part()` and the
+streak/equipment systems address these by name, so the names are part of the contract rather than
+descriptions, and the detail builders preserve them.
+
+Every mesh is built with outward-facing windings from a single code path, and `sweep()` normalises
+the winding against each frame's handedness, so no part can silently disappear under back-face
+culling.
+
+## Maps
+
+`tools/deadshot_enrich_maps.py` adds the architectural detail the ported blockout omits — parapets,
+base plinths, window and door frames, glazing and downpipes — to the structures in
+`data/maps/*.json`. It is purely additive: it never edits or removes an authored node, so the
+exported collision boxes, spawn pads and navigation graph are untouched, and `MapWorld` builds the
+same world it did before.
+
+## Verification
+
+`tools/snapshot_assets.gd` renders every regenerated asset through the real material system into
+`assets/models/previews_*.png`, framing each one from its measured world bounds. Those previews are
+the visual record of the geometry rebuild; the numeric guarantees live in
+`tools/blender_verify_models.gd` (every source local transform, geometry bound, hierarchy node and
+material) and `scripts/world/verify_maps.gd` (authored and detail node counts, colliders, spawns
+and the navigation graph).

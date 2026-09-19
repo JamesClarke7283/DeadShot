@@ -29,7 +29,16 @@ func _has_markers(code: String) -> bool:
 	return false
 
 func _run() -> void:
-	root.size = Vector2i(1280, 720)
+	# Every tier renders faster than the 60 Hz present interval, so with vsync on
+	# the wall-clock measurement saturates at 60 fps for all four levels and the
+	# ordering check measures the refresh rate instead of the tier's cost.
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	# The tiers differ by single-digit percent at 1280x720, which is inside
+	# run-to-run noise even after isolating render work. Measuring at 2560x1440
+	# scales the pixel-bound work each tier controls by roughly four while the
+	# fixed per-frame overhead stays put, so the same difference becomes a margin
+	# several times the noise instead of being hidden by it.
+	root.size = Vector2i(2560, 1440)
 	var bootstrap = MAIN.new()
 	bootstrap._setup_input()
 	bootstrap.free()
@@ -45,18 +54,28 @@ func _run() -> void:
 		session.state = "live"
 		session.player.position = Vector3(-40, 0, 0)
 		session.player.rotation.y = -PI / 2
+		# Warm the pipeline with real simulation so bot paths and VFX are live.
 		for i in range(24):
 			session.tick(1.0 / 60.0)
 			await process_frame
-		# Warm the pipeline, then measure.
-		var start := Time.get_ticks_usec()
-		for i in range(90):
-			session.tick(1.0 / 60.0)
-			await process_frame
-		var seconds := (Time.get_ticks_usec() - start) / 1000000.0
+		# Measure rendering alone: the tiers change shading work, shadow cascades,
+		# MSAA and render scale, while `session.tick` drives eight bot planners on
+		# the CPU regardless of tier. Ticking inside the timed loop let that
+		# shared CPU cost dominate the wall clock — low measured ~2% ahead of high,
+		# which is inside run-to-run noise. Presenting the same live scene without
+		# ticking isolates the work each tier actually controls.
+		# Best of several batches: a single batch is dominated by whatever else the
+		# desktop is doing, while the tiers differ by well under a millisecond.
+		var batches: Array[float] = []
+		for batch in range(5):
+			var start := Time.get_ticks_usec()
+			for i in range(60):
+				await process_frame
+			batches.append((Time.get_ticks_usec() - start) / 1000000.0)
+		var seconds: float = batches.min()
 		var environment: Environment = session.map.world_environment.environment
 		results[level] = {
-			"fps": 90.0 / maxf(seconds, 0.0001),
+			"fps": 60.0 / maxf(seconds, 0.0001),
 			"drawcalls": Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME),
 			"primitives": Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME),
 			"ssao": environment.ssao_enabled,
@@ -66,7 +85,7 @@ func _run() -> void:
 			"scale": root.scaling_3d_scale,
 		}
 		print("TIER %-7s %5.1f fps  %5.2f ms  %4d draws  ssao=%-5s glow=%-5s cascade=%d msaa=%d scale=%.2f" % [
-			level, results[level].fps, seconds / 90.0 * 1000.0, results[level].drawcalls,
+			level, results[level].fps, seconds / 60.0 * 1000.0, results[level].drawcalls,
 			results[level].ssao, results[level].glow, results[level].cascades,
 			results[level].msaa, results[level].scale])
 		session.free()

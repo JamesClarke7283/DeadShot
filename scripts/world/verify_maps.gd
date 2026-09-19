@@ -9,12 +9,23 @@ func _initialize() -> void:
 
 func _verify() -> void:
 	var expected := {
-		# Visible, non-outline nodes only: the exported cartoon outline hulls are
-		# dropped by the realistic material pass and no longer become meshes.
-		"desert_town": [177, 81, 471],
-		"forest_facility": [655, 66, 472],
-		"urban_docks": [111, 66, 648],
+		# Visible, non-outline authored nodes that become their own mesh instance.
+		# Instanced batches (the tree canopies) collapse into one
+		# MultiMeshInstance3D each, so this is below the raw node count.
+		# The architectural detail nodes `tools/deadshot_enrich_maps.py` adds are
+		# counted separately so a regression in either is distinguishable: six
+		# structural slots (parapet, plinth, frames, glazing, doors, trim) plus
+		# prop slots (body, glazing, trim, rubber, lamps), of which only the ones
+		# that produced geometry emit a node. `expected_detail` is the floor all
+		# three maps reach, and the structural slots are asserted by name.
+		"desert_town": [149, 81, 471, 6],
+		"forest_facility": [103, 66, 472, 6],
+		"urban_docks": [103, 66, 648, 6],
 	}
+	var expected_detail := 9
+	var required_slots := ["ds_map_parapet", "ds_map_plinth", "ds_map_frame",
+			"ds_map_glass_dark", "ds_map_door", "ds_map_metal_trim", "prop_body",
+			"prop_trim", "prop_rubber"]
 	var world = WORLD.new()
 	root.add_child(world)
 	var failures: Array[String] = []
@@ -22,7 +33,24 @@ func _verify() -> void:
 		if not world.load_map(id):
 			failures.append("Could not load %s" % id)
 			continue
-		if world.mesh_instance_count != expected[id][0]: failures.append("Mesh instance count: " + id)
+		var authored := 0
+		var detail := 0
+		var slot_names: Array[String] = []
+		for node in _mesh_instances(world):
+			if str(node.name).begins_with("detail_"):
+				detail += 1
+				slot_names.append(str(node.name))
+			else:
+				authored += 1
+		if authored != expected[id][0]: failures.append("Authored mesh count: " + id)
+		if detail < expected_detail: failures.append("Detail node count: " + id)
+		for slot: String in required_slots:
+			var found := false
+			for name: String in slot_names:
+				if name.ends_with(slot):
+					found = true
+					break
+			if not found: failures.append("Missing detail slot %s: %s" % [slot, id])
 		if world.collision_boxes.size() != expected[id][1]: failures.append("Collision count: " + id)
 		if world.nav_points.size() != expected[id][2]: failures.append("Navigation count: " + id)
 		if world.spawn_points.size() != 27: failures.append("Spawn count: " + id)
@@ -40,10 +68,18 @@ func _verify() -> void:
 		if absf(wall_distance - 6.5) > 0.0001 and id != "forest_facility": failures.append("Perimeter raycast: " + id)
 		var resolved: Vector3 = world.resolve_position(Vector3(-71.7, world.height_at(-71.7, 0), 0), 0.45, 1.75)
 		if resolved.x < -71.051: failures.append("Perimeter mover collision: " + id)
-		print("MAP VERIFIED %s meshes=%d colliders=%d spawns=%d navigation=%d" % [id, world.mesh_instance_count, world.collision_boxes.size(), world.spawn_points.size(), world.nav_points.size()])
+		print("MAP VERIFIED %s authored=%d detail=%d colliders=%d spawns=%d navigation=%d" % [id, authored, detail, world.collision_boxes.size(), world.spawn_points.size(), world.nav_points.size()])
 		await process_frame
 	world.queue_free()
 	await process_frame
 	for failure: String in failures:
 		push_error(failure)
 	quit(0 if failures.is_empty() else 1)
+
+func _mesh_instances(node: Node) -> Array[Node]:
+	var found: Array[Node] = []
+	if node is MeshInstance3D:
+		found.append(node)
+	for child in node.get_children():
+		found.append_array(_mesh_instances(child))
+	return found

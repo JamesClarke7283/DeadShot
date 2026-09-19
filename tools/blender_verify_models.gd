@@ -23,7 +23,7 @@ func _run() -> void:
 			continue
 		for record in catalog.models[id].nodes:
 			var entry: Dictionary = catalog.models[id].nodes[record]
-			if entry.has("material") and bool(catalog.materials[entry.material].get("outline", false)):
+			if entry.has("material") and not str(entry["material"]).is_empty() and bool(catalog.materials[entry.material].get("outline", false)):
 				dropped_outlines += 1
 				continue
 			var part := Visuals.part(model, record)
@@ -35,7 +35,10 @@ func _run() -> void:
 			elif entry.has("material") and not (part.material_override is ShaderMaterial):
 				failures.append("Missing surface material " + id + "/" + record)
 		for record in source.models[id].nodes:
-			if source.materials.has(record.get("material", "")) and bool(source.materials[record.material].get("outline", false)):
+			var material_key: String = str(record.get("material", ""))
+			# Nodes without a material are the pivot empties (`gun`, `muzzle`,
+			# `knife`, the character joints); they carry no outline to skip.
+			if not material_key.is_empty() and source.materials.has(material_key) and bool(source.materials[material_key].get("outline", false)):
 				continue
 			var node := Visuals.part(model, record.name)
 			if node == null:
@@ -45,7 +48,7 @@ func _run() -> void:
 			var expected_transform := Transform3D(Basis(Vector3(m[0],m[1],m[2]),Vector3(m[4],m[5],m[6]),Vector3(m[8],m[9],m[10])),Vector3(m[12],m[13],m[14]))
 			if not node.transform.is_equal_approx(expected_transform):
 				failures.append("Changed local transform " + id + "/" + record.name)
-			if record.has("geometry"):
+			if record.get("geometry") != null:
 				var geometry: Dictionary = source.geometries[record.geometry]
 				var expected_box := AABB()
 				for i in range(0,geometry.positions.size(),3):
