@@ -9,3 +9,13 @@ __pycache__/
 *.py[cod]
 *.blend1
 *.blend2
+
+# Generated Blender input: the output of tools/deadshot_rebuild_models.py and the
+# input to tools/blender_build_models.py. It is a build product, not a source --
+# regenerate it with `python tools/deadshot_rebuild_models.py`, which rebuilds it
+# from the builders plus the pristine `assets/models/source/models_ported.json`
+# fallback. It is ~182 MB of float32 mesh data that the runtime never reads (the
+# game loads the exported GLBs, and assets/models/source/.gdignore keeps the
+# whole directory out of exports), so committing it would bloat the repository
+# for no benefit. It is still written to disk on every rebuild.
+/assets/models/source/models.json

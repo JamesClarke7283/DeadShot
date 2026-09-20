@@ -12,7 +12,14 @@ realistic surface materials through `scripts/visuals/visual_factory.gd`.
 
 ## Regenerating
 
-`models.json` is generated, not hand-edited. `models_ported.json` preserves the original ported
+`models.json` is generated, not hand-edited, and is **not committed** — see
+`.gitignore`. It is a build product (~182 MB of float32 mesh data) that only
+`blender_build_models.py` and the round-trip verifier read; the runtime loads the
+exported GLBs, and this directory's `.gdignore` keeps it out of exports entirely.
+`python tools/deadshot_rebuild_models.py` regenerates it from the builders below
+plus the pristine fallback, so a fresh clone only needs that one command.
+
+`models_ported.json` preserves the original ported
 Three.js export that the detail builders replace, and is used as the fallback source for every
 asset that has no builder of its own.
 
