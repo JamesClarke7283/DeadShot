@@ -23,6 +23,15 @@ godot --headless --path . --import
 python tools/run_check.py --script tools/blender_verify_models.gd
 ```
 
+`models.json` is written with every geometry float truncated to six significant
+digits. The builders compute in double precision, so `repr` emitted up to 20
+digits per coordinate — 308 MB of JSON describing meshes that are exported to
+GLB, and therefore read by Godot, as float32. Six digits is above float32's
+precision at these magnitudes and costs at most 5 µm of positional error, three
+orders of magnitude below the 0.1 mm the round-trip verifier asserts; it brings
+the file to 182 MB. The truncation lives in the generator, so it is reapplied on
+every rebuild rather than being a one-off edit to the data.
+
 `deadshot_rebuild_models.py` rewrites `models.json` from the builders and keeps the ported
 geometry for anything they do not cover, so the two never drift. It reads that fallback from
 `models_ported.json`, and only writes that file when it is absent — so delete it before a first
@@ -36,9 +45,17 @@ Weapons, attachments, characters and props are generated procedurally in metres,
 | Module | Covers | Detail |
 | --- | --- | --- |
 | `deadshot_detail.py` | shared DSL | sweeping, extrusion, chamfers, smooth-shaded tubes |
-| `deadshot_weapons.py` | 9 categories, all attachments | 168–192 tris → 2400–6400 tris |
-| `deadshot_characters.py` | `human_blue`, `human_red`, `human_ffa` | 2728 tris → 6092 tris |
-| `deadshot_props.py` | scorestreaks, equipment, pickups, rocket | 84–2728 tris → 180–1500 tris |
+| `deadshot_weapons.py` | 8 categories, the knife, all attachments | 168–192 tris → 30 546–48 374 per weapon, 6 352–9 524 per attachment |
+| `deadshot_characters.py` | `human_blue`, `human_red`, `human_ffa` | 2728 tris → 59 554 tris each |
+| `deadshot_props.py` | scorestreaks, equipment, pickups, rocket | 84–2728 tris → 4 064–26 892 tris |
+
+Detail is chosen for what the renderer can resolve rather than for a triangle
+budget alone: true silhouette (chamfers and bevels, not sharp box edges),
+separation between adjacent volumes (recessed panel lines), and small proud
+features — screws, rivets, hinges, stitches, buckles — that catch a highlight
+under the parallax-mapped surface shader. A reusable screw/pin helper and high
+primitive station counts are the cheapest levers; adding segments to a cylinder
+is nearly free visually, so the structure is what the budget is spent on.
 
 Each asset keeps the named pivots the gameplay code drives: `gun`, `muzzle` and `knife` on every
 weapon; `hips`, `head`, `face`, `headband` and the four limb joints on characters; `rotor`,

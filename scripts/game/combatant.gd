@@ -171,15 +171,15 @@ func _set_render_layer(node: Node, layer: int) -> void:
 		_set_render_layer(child, layer)
 
 ## The rig is the only lighting the player can see on their own weapon, so every
-## tier keeps the key light; the cheaper tiers drop the fill and rim, which are
+## band keeps the key light; the cheaper bands drop the fill and rim, which are
 ## the two lights whose contribution is least missed at speed.
 func apply_quality(level: String = "") -> void:
 	if not is_instance_valid(viewmodel_rig):
 		return
-	var resolved := QUALITY.normalize(level if not level.is_empty() else QUALITY.current())
+	var settings := QUALITY.preset(level)
 	var fill := viewmodel_rig.get_node_or_null("ViewmodelFill")
 	var rim := viewmodel_rig.get_node_or_null("ViewmodelRim")
-	var full := resolved in ["high", "ultra"]
+	var full := float(settings.viewmodel_detail) >= 1.0
 	if fill: fill.visible = full
 	if rim: rim.visible = full
 

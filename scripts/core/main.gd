@@ -51,8 +51,9 @@ func _ready() -> void:
 		audio.start_music()
 		audio.set_music_intensity(0.0)
 	ui.show_main_menu()
-	# Restore the saved tier before a match builds its materials.
-	QUALITY.set_current(str(ui.store.get_settings().get("graphics", QUALITY.DEFAULT_LEVEL)))
+	# Restore the saved detail level before a match builds its materials.
+	var saved_settings: Dictionary = ui.store.get_settings()
+	QUALITY.set_detail(float(saved_settings.get("graphicsDetail", QUALITY.detail_for_level(str(saved_settings.get("graphics", QUALITY.DEFAULT_LEVEL))))))
 	QUALITY.apply_viewport(get_viewport())
 	var arguments=OS.get_cmdline_user_args()
 	if "--smoke-match" in arguments:
@@ -159,6 +160,10 @@ func _leave_multiplayer() -> void:
 		relay=null
 
 func _physics_process(dt: float) -> void:
+	# A detail change must settle whether or not a match is running, so the
+	# debounce is driven here rather than from inside the match tick.
+	if _quality_dirty:
+		_tick_quality(dt)
 	if state=="playing" and gamepad:
 		gamepad.poll(dt,game_match.player if is_instance_valid(game_match) and not paused and not is_instance_valid(replay) else null)
 	if state=="post_match" and is_instance_valid(replay):
@@ -328,28 +333,62 @@ func _end_replay()->void:
 		if game_match.player:game_match.player.camera.make_current()
 	if ui:ui.hide_replay()
 
+var _quality_dirty := false
+var _quality_debounce := 0.0
+## Rebuilding the world's materials is the expensive half of a detail change, and
+## an HSlider emits `value_changed` continuously while it is dragged. Committing
+## on a short quiet period keeps a drag from recompiling the world's shader
+## variants once per pixel of travel while still applying live.
+const QUALITY_DEBOUNCE := 0.15
+
 func apply_settings(settings: Dictionary) -> void:
 	if is_instance_valid(game_match) and game_match.player:
 		game_match.player.apply_settings(settings)
 	if audio and audio.has_method("apply_settings"):
 		audio.apply_settings(settings)
-	apply_quality(str(settings.get("graphics", QUALITY.DEFAULT_LEVEL)))
+	# A saved band without an explicit slider position (an older save, or the
+	# browser import format) resolves to that band's anchor. A present slider
+	# position is authoritative, so dragging it and then touching an unrelated
+	# setting does not snap the slider back to a named tier. A patch carrying
+	# neither key is not a graphics change at all and leaves the slider alone.
+	if settings.has("graphicsDetail"):
+		QUALITY.set_detail(float(settings.graphicsDetail))
+	elif settings.has("graphics"):
+		QUALITY.set_detail(QUALITY.detail_for_level(str(settings.get("graphics", QUALITY.DEFAULT_LEVEL))))
+	_quality_dirty = true
+	_quality_debounce = QUALITY_DEBOUNCE if is_instance_valid(game_match) else 0.0
+	if _quality_debounce <= 0.0:
+		_apply_quality_now()
 
-## Rebuilds the material variants and re-applies lighting cost for a new tier.
-## Live geometry is retinted in place so changing the setting does not drop the
-## player out of a match.
-func apply_quality(level: String) -> void:
-	var resolved := QUALITY.set_current(level)
+## The viewport half of a detail change (MSAA, render scale, shadow atlas) is
+## cheap, so it tracks the slider immediately; the material rebuild waits for the
+## debounce. `_physics_process` is already the frame driver for the match.
+func _tick_quality(dt: float) -> void:
+	if not _quality_dirty:
+		return
+	QUALITY.apply_viewport(get_viewport())
+	_quality_debounce -= dt
+	if _quality_debounce <= 0.0:
+		_apply_quality_now()
+
+func _apply_quality_now() -> void:
+	_quality_dirty = false
+	var resolved := QUALITY.current()
 	QUALITY.apply_viewport(get_viewport(), resolved)
-	# Shader variants are cached per tier inside the quality module and per
-	# (tier, render-mode) pair inside the material factory; both must be dropped
-	# so rebuilt materials compile against the new tier.
+	# Shader variants are cached per band inside the quality module and per
+	# (band, render-mode) pair inside the material factory; both must be dropped
+	# so rebuilt materials compile against the new band.
 	MATERIALS.clear_variants()
 	if is_instance_valid(game_match):
 		if is_instance_valid(game_match.map):
 			game_match.map.apply_quality(resolved)
 		if game_match.vfx:game_match.vfx.apply_quality(resolved)
 		if is_instance_valid(game_match.player):game_match.player.apply_quality(resolved)
+
+## Explicit band selection: moves the slider to that band's anchor and applies.
+func apply_quality(level: String) -> void:
+	QUALITY.set_current(level)
+	_apply_quality_now()
 
 func _weapon_sound(id:String,at:Vector3,local:bool) -> void:
 	if not local:

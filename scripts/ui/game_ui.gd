@@ -274,7 +274,10 @@ func _check(parent: Node, text: String, checked: bool, action: Callable) -> Chec
 	check.toggled.connect(action)
 	return check
 
-func _slider(parent: Node, caption: String, value: float, minimum: float, maximum: float, step: float, action: Callable) -> void:
+## Continuous-value control. Returns `{slider, label}` so a caller can attach to
+## `slider.value_changed` for extra work — the graphics control relabels itself
+## with the band the position resolves to instead of a bare number.
+func _slider(parent: Node, caption: String, value: float, minimum: float, maximum: float, step: float, action: Callable) -> Dictionary:
 	var section := _section(parent, caption)
 	var row := _hbox(section, 16)
 	var slider := HSlider.new()
@@ -286,10 +289,11 @@ func _slider(parent: Node, caption: String, value: float, minimum: float, maximu
 	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(slider)
 	var value_label := _label(row, str(int(value)) if step >= 1 else str(value), 18, UI.GREEN, 800)
-	value_label.custom_minimum_size.x = 44
+	value_label.custom_minimum_size.x = 96
 	slider.value_changed.connect(func(current):
 		value_label.text = str(int(current)) if step >= 1 else str(current)
 		action.call(current))
+	return {"slider": slider, "label": value_label}
 
 func show_main_menu() -> void:
 	_switch("main")
@@ -431,13 +435,20 @@ func show_options(return_to: String = "main") -> void:
 	_slider(panel, "Music Volume", settings.musicVolume, 0, 1, 0.01, func(value): _setting("musicVolume", value))
 	_slider(panel, "Mouse Sensitivity", settings.sensitivity, 0.1, 3, 0.05, func(value): _setting("sensitivity", value))
 	_slider(panel, "Field of View", settings.fov, 50, 110, 1, func(value): _setting("fov", value))
-	var levels: Array = []
+	# The graphics control is a single continuous detail slider. Each position
+	# resolves to a named band, shown live next to the value so the trade the
+	# slider is making stays legible rather than being an abstract number.
+	var detail := _slider(panel, "Graphics Detail", settings.get("graphicsDetail", GraphicsQuality.detail_for_level(str(settings.get("graphics", GraphicsQuality.DEFAULT_LEVEL)))), 0, 100, 1, func(value): _setting("graphicsDetail", value))
+	detail.slider.value_changed.connect(func(value):
+		detail.label.text = "%d  %s" % [int(value), GraphicsQuality.level_for_detail(value).capitalize()])
+	detail.label.text = "%d  %s" % [int(detail.slider.value), GraphicsQuality.level_for_detail(detail.slider.value).capitalize()]
+	# Presets are shortcuts onto the same slider, not a separate code path.
+	var presets := _hbox(_section(panel, "Preset"), 8)
 	for level in GraphicsQuality.LEVELS:
-		levels.append({"id": level, "name": level.capitalize()})
-	var graphics_option := _option(_section(panel, "Graphics"), levels, str(settings.get("graphics", GraphicsQuality.DEFAULT_LEVEL)), func(value): _setting("graphics", value))
-	graphics_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	graphics_option.add_theme_font_size_override("font_size", 16)
-	graphics_option.add_theme_font_override("font", UI.font(600))
+		_button(presets, str(level).to_upper(), func():
+			store.update_settings({"graphicsDetail": GraphicsQuality.detail_for_level(str(level)), "graphics": str(level)})
+			settings_changed.emit(store.get_settings())
+			show_options(settings_return), true).size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_check(panel, "INVERT Y", settings.invertY, func(value): _setting("invertY", value))
 	_check(panel, "KILLCAM", settings.killcam, func(value): _setting("killcam", value))
 	var saves := _hbox(panel, 10)

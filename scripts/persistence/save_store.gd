@@ -19,7 +19,11 @@ static func default_class(index: int) -> Dictionary:
 	return {"name": "Custom %d" % (index + 1), "primary": {"weaponId": "m4", "attachments": ["reddot", "compensator"]}, "secondary": {"weaponId": "m9", "attachments": []}, "tactical": "flashbang", "lethal": "frag", "fieldUpgrade": "deadsilence", "perks": ["double_time", "ghost", "amped"], "streaks": ["uav", "care_package", "attack_heli"], "camo": "gunmetal"}
 
 static func default_settings() -> Dictionary:
-	return {"sensitivity": 1.0, "fov": 75, "masterVolume": 0.8, "sfxVolume": 0.9, "musicVolume": 0.5, "invertY": false, "killcam": true, "graphics": "high"}
+	# `graphicsDetail` is the shipped control: a continuous 0-100 detail scale.
+	# `graphics` is retained as the resolved band name, so older saves and the
+	# import/export format stay readable and a preset click can record which
+	# anchor it came from.
+	return {"sensitivity": 1.0, "fov": 75, "masterVolume": 0.8, "sfxVolume": 0.9, "musicVolume": 0.5, "invertY": false, "killcam": true, "graphics": "high", "graphicsDetail": 66.0}
 
 static func default_match_config() -> Dictionary:
 	return {"mapId": "desert_town", "mode": "tdm", "botCount": 8, "difficulty": "regular", "hardcore": false}

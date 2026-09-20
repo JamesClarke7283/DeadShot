@@ -57,6 +57,21 @@ flash and blur retain independent timers. Effects pause with the match. Call
 the browser: radial ellipse tint, separable Gaussian blur, then white flash over
 the HUD. Effects do not change movement or audio playback.
 
+## Settings
+
+`OPTIONS` edits one flat settings dictionary and persists each change through
+`SaveStore.update_settings(patch)`, then emits the whole dictionary on
+`settings_changed`. Keys: `sensitivity`, `fov`, `masterVolume`, `sfxVolume`,
+`musicVolume`, `invertY`, `killcam`.
+
+Graphics is two keys working as one control. `graphicsDetail` is the shipped
+**0–100** slider. `graphics` is the band that position resolves to
+(`low`/`medium`/`high`/`ultra`), kept so an older save or the browser import
+format stays readable. A settings dictionary carrying `graphicsDetail` is
+authoritative for the slider; one carrying only `graphics` moves the slider to
+that band's anchor. `SaveStore.migrate()` drops a `graphicsDetail` that is not a
+float, and a save predating it migrates to the default anchor.
+
 ## Multiplayer and console
 
 `show_multiplayer()` opens the connection form. Signals:

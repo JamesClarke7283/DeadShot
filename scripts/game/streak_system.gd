@@ -275,7 +275,11 @@ func _tick_entry(entry: Dictionary, dt: float) -> void:
 			entry.angle += config.angular * dt
 			entry.node.position = Vector3(center.x + cos(entry.angle) * config.radius, config.altitude, center.z + sin(entry.angle) * config.radius)
 			entry.node.rotation.y = -entry.angle + PI / 2.0
-			Visuals.part(entry.node, "rotor").rotation.y += dt * 30.0
+			# The aircraft carry separate main and tail rotor pivots, matching the
+			# care-package path below; the ported single `rotor` node was replaced
+			# by that pair in the geometry rebuild.
+			Visuals.part(entry.node, "mainRotor").rotation.y += dt * 30.0
+			Visuals.part(entry.node, "tailRotor").rotation.x += dt * 34.0
 			if entry.timer <= 0.0:
 				entry.timer = config.interval
 				var enemies := _enemies(owner)

@@ -4,6 +4,7 @@ extends Node3D
 ## Coordinates, colliders, spawns and waypoint graph are kept in source units.
 
 const MATERIALS = preload("res://scripts/world/map_material.gd")
+const SurfaceLibrary = preload("res://scripts/world/surface_library.gd")
 const QUALITY = preload("res://scripts/world/graphics_quality.gd")
 const MAP_IDS: Array[String] = ["desert_town", "forest_facility", "urban_docks"]
 var map_id: String = ""
@@ -51,7 +52,7 @@ func load_map(id: String) -> bool:
 		if bool(data["materials"][key].get("outline", false)):
 			continue
 		_material_hints[key] = _surface_hint(key, data)
-		_materials[key] = MATERIALS.create_material(data["materials"][key], environment_data, _material_hints[key])
+		_materials[key] = MATERIALS.create_material(data["materials"][key], environment_data, _material_hints[key], QUALITY.current())
 		if float(data["materials"][key].get("windStrength", 0.0)) > 0.0:
 			_wind_materials.append(_materials[key])
 	var batches: Dictionary = {}
@@ -97,11 +98,17 @@ func load_map(id: String) -> bool:
 				navigation.connect_points(point.id, int(neighbor), false)
 	return true
 
-## Rebuilds every surface material for a new quality tier and re-applies the
-## lighting cost. Existing mesh instances keep their transforms, so this is safe
-## to run mid-match.
+## Rebuilds every surface material for the current detail level and re-applies
+## the lighting cost. Existing mesh instances keep their transforms, so this is
+## safe to run mid-match.
+##
+## `level` names a band explicitly (used by the tests and by band selection);
+## when omitted the live slider position decides. Reading the slider rather than
+## writing it matters: the caller owns the detail value, and a rebuild that
+## snapped the slider back to a band anchor would silently discard an
+## intermediate position.
 func apply_quality(level: String = "") -> void:
-	var resolved := QUALITY.set_current(level)
+	var resolved := QUALITY.normalize(level) if not level.is_empty() else QUALITY.current()
 	if world_environment and world_environment.environment:
 		QUALITY.apply_environment(world_environment.environment, sun, resolved)
 	# Re-read the material source table so the rebuild uses the same profiles.
@@ -109,7 +116,7 @@ func apply_quality(level: String = "") -> void:
 		return
 	_materials.clear()
 	for key: String in _source_materials:
-		_materials[key] = MATERIALS.create_material(_source_materials[key], environment_data, _material_hints.get(key, ""))
+		_materials[key] = MATERIALS.create_material(_source_materials[key], environment_data, _material_hints.get(key, ""), resolved)
 	_retarget_materials(get_children())
 
 ## Walks the tree and points every instance at the rebuilt material for its key.
@@ -388,6 +395,15 @@ func _build_environment() -> void:
 	# the horizon, which read as a hard band across the map edge.
 	var haze := MATERIALS.color_from_array(environment_data.get("fogColor", [0.7, 0.72, 0.75])).lerp(sky_tone, 0.55)
 	environment_data["fogColor"] = [haze.r, haze.g, haze.b]
+	# The authored `skyColor` is the horizon's own tone (a dusty cream over the
+	# desert, a pale blue over the docks), so using it for both ends of the
+	# gradient produced a flat, tonally uniform dome. The zenith is that same
+	# tone pushed away from the horizon: darker and more saturated, which is the
+	# luminance drop that makes a sky read as a sky.
+	var zenith_tone := Color(
+			clampf(sky_tone.r * 0.42, 0.0, 1.0),
+			clampf(sky_tone.g * 0.58, 0.0, 1.0),
+			clampf(sky_tone.b * 0.92, 0.0, 1.0))
 
 	world_environment = WorldEnvironment.new()
 	world_environment.name = "MapEnvironment"
@@ -396,34 +412,54 @@ func _build_environment() -> void:
 	environment.sky = Sky.new()
 	environment.sky.sky_material = ShaderMaterial.new()
 	environment.sky.sky_material.shader = preload("res://scripts/world/sky.gdshader")
-	environment.sky.sky_material.set_shader_parameter("zenith_color", Vector3(sky_tone.r, sky_tone.g, sky_tone.b))
+	environment.sky.sky_material.set_shader_parameter("zenith_color", Vector3(zenith_tone.r, zenith_tone.g, zenith_tone.b))
 	environment.sky.sky_material.set_shader_parameter("horizon_color", Vector3(haze.r, haze.g, haze.b))
 	environment.sky.sky_material.set_shader_parameter("ground_color", Vector3(ground_tone.r, ground_tone.g, ground_tone.b))
 	environment.sky.sky_material.set_shader_parameter("sun_color", Vector3(sun_tone.r, sun_tone.g, sun_tone.b))
-	# Sky radiance supplies the specular reflection, but the Compatibility
-	# renderer's sky-sourced ambient is far weaker per unit energy than a colour
-	# ambient and ignores `ambient_light_energy`, which left shaded geometry
-	# reading as black. An explicit ambient built from the map's own sky and
-	# ground tones is predictable and keeps the map's colour cast.
-	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = ground_tone.lerp(sky_tone, 0.62).linear_to_srgb()
-	environment.ambient_light_energy = 2.2
+	# Sky radiance supplies the specular reflection and, on Forward+, the
+	# ambient diffuse light as well. Ambient is therefore taken from the sky
+	# rather than from a hand-tuned colour: the map's own sky and ground tones
+	# already carry the colour cast, and a sky-sourced ambient tracks time of day
+	# and the SDFGI bounce instead of fighting them. The Compatibility renderer
+	# ignores `ambient_light_energy` for sky ambient, so it keeps the explicit
+	# colour ambient that made shaded geometry readable there.
+	var advanced := QUALITY.advanced_lighting_supported()
+	if advanced:
+		environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+		environment.ambient_light_sky_contribution = 1.0
+		environment.ambient_light_energy = 1.0
+	else:
+		environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+		environment.ambient_light_color = ground_tone.lerp(sky_tone, 0.62).linear_to_srgb()
+		environment.ambient_light_energy = 2.2
 	environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	environment.tonemap_mode = Environment.TONE_MAPPER_ACES
-	environment.tonemap_exposure = 0.78 * float(environment_data.get("exposure", 1.0))
+	# Forward+ shading is energy-conserving and the sky is the ambient source, so
+	# the frame's exposure is far lower than the Compatibility build needed. The
+	# value is calibrated by measurement rather than by eye: sweeping exposure
+	# against the sky's radiance scale on the reference viewpoint gave
+	# (0.20, 0.90) a 0.44 mean frame luminance with a 0.52 mean over the sky band
+	# and no clipping, which is where an ACES-graded daylight exterior belongs.
+	environment.tonemap_exposure = (0.20 if advanced else 0.78) * float(environment_data.get("exposure", 1.0))
 	environment.tonemap_white = 4.0
 	# Depth fog supplies the aerial perspective that hides the arena edge and
 	# separates near and far geometry; fog_sky_affect stays at zero so the sky
-	# itself keeps its authored brightness.
+	# itself keeps its authored brightness. The near and far planes come from the
+	# map's own `fogNear`/`fogFar`, because the arenas differ — a hardcoded pair
+	# left the desert, whose authored haze only starts at 70 m, buried in fog from
+	# 30 m out and washed its middle distance flat.
 	environment.fog_enabled = true
 	environment.fog_mode = Environment.FOG_MODE_DEPTH
 	environment.fog_light_color = haze.linear_to_srgb()
 	environment.fog_light_energy = 1.0
-	environment.fog_depth_begin = 30.0
-	environment.fog_depth_end = 210.0
+	environment.fog_depth_begin = float(environment_data.get("fogNear", 30.0))
+	environment.fog_depth_end = float(environment_data.get("fogFar", 210.0))
 	environment.fog_depth_curve = 1.2
 	environment.fog_sky_affect = 0.0
-	environment.fog_aerial_perspective = 0.0
+	# Forward+ supports aerial perspective, which tints distant geometry by the
+	# sky behind it. That is what removes the hard fog band the Compatibility
+	# build showed at the horizon.
+	environment.fog_aerial_perspective = 0.6 if advanced else 0.0
 	# Screen-space ambient occlusion grounds contact shadows between boxes.
 	environment.ssao_enabled = true
 	environment.ssao_radius = 1.1
@@ -452,7 +488,11 @@ func _build_environment() -> void:
 	sun.name = "Sun"
 	# Godot treats RGB light colour as sRGB; the exported tones are linear.
 	sun.light_color = sun_tone.linear_to_srgb()
-	sun.light_energy = float(environment_data.get("sunIntensity", 2.4)) * 0.72
+	# The Compatibility renderer's non-conserving shading needed the sun pulled
+	# down to 0.72 of the exported intensity to avoid clipping. Forward+ is
+	# energy-conserving and the exposure above is authored against it, so the
+	# exported intensity is used directly.
+	sun.light_energy = float(environment_data.get("sunIntensity", 2.4)) * (1.0 if advanced else 0.72)
 	# Real PSSM shadows replace the ported single-orthographic Three camera.
 	sun.shadow_enabled = true
 	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
@@ -465,8 +505,30 @@ func _build_environment() -> void:
 	var direction := vector_from_array(environment_data.get("sunDirection", [0.5, 1.0, 0.35])).normalized()
 	sun.look_at_from_position(direction * 88.0, Vector3.ZERO, Vector3.UP)
 	environment.sky.sky_material.set_shader_parameter("sun_direction", direction)
-	environment.sky.sky_material.set_shader_parameter("sun_energy", 5.0 if direction.y > 0.35 else 12.0)
+	# The sky is the ambient source on Forward+, so its radiance sets how bright
+	# shaded geometry reads. The authored palette is a display-referred tone, not
+	# radiance: at 1.0 the whole gradient sits above the tone map's shoulder and
+	# washes out. `sky_scale` brings it into range, and the sun term stays small
+	# because it is additive on top of an already-lit gradient — the original 5.0
+	# flooded the entire frame through the sky-sourced ambient rather than
+	# reading as a disc. Calibrated by measurement alongside the exposure below.
+	environment.sky.sky_material.set_shader_parameter("sky_scale", 0.90)
+	environment.sky.sky_material.set_shader_parameter("sun_energy", 1.6 if direction.y > 0.35 else 3.2)
 	environment.sky.sky_material.set_shader_parameter("ground_fade", 0.07 if direction.y > 0.35 else 0.11)
+	# Cloud cover is a real part of each arena's look: a desert town sits under a
+	# thin high haze, the forest under a heavier broken deck, the waterfront under
+	# a coastal overcast. Authored per map in `data/maps/*.json`'s `clouds` block,
+	# with a cover value derived from the map's own exported haze otherwise.
+	var clouds: Dictionary = environment_data.get("clouds", {})
+	var haze_weight := clampf(1.0 - (haze.r * 0.2126 + haze.g * 0.7152 + haze.b * 0.0722) * 1.6, 0.0, 0.9)
+	environment.sky.sky_material.set_shader_parameter("cloud_cover", float(clouds.get("cover", 0.30 + haze_weight * 0.5)))
+	environment.sky.sky_material.set_shader_parameter("cloud_sharpness", float(clouds.get("sharpness", 1.6)))
+	environment.sky.sky_material.set_shader_parameter("cloud_brightness", float(clouds.get("brightness", 1.35)))
+	environment.sky.sky_material.set_shader_parameter("cloud_height", float(clouds.get("height", 0.16)))
+	# The deck is a baked seamless field rather than evaluated noise: the sky
+	# shader runs per radiance texel, where a procedural hash field cost more than
+	# the entire rest of the low band.
+	environment.sky.sky_material.set_shader_parameter("cloud_map", SurfaceLibrary.cloud_cover(256))
 	# A slow horizon->zenith gradient reads as thick haze near eye level and
 	# blends into the depth fog, instead of meeting it at a hard line.
 	environment.sky.sky_material.set_shader_parameter("horizon_softness", 1.0 if direction.y > 0.35 else 1.25)

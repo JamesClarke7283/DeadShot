@@ -3,6 +3,7 @@ extends SceneTree
 ## save that predates the setting, and fall back safely when given junk.
 
 const Store = preload("res://scripts/persistence/save_store.gd")
+const Quality = preload("res://scripts/world/graphics_quality.gd")
 var failures: Array[String] = []
 var checks := 0
 
@@ -46,6 +47,40 @@ func _run() -> void:
 	# The browser save format carries the same key.
 	check(store.import_browser_save(JSON.stringify({"settings": {"graphics": "low"}})), "Browser save imports")
 	check(store.get_settings().graphics == "low", "Browser save carries the tier")
+
+	# The shipped control is the continuous detail slider. It must round-trip, be
+	# rejected when it is not a number, and default onto the anchor of the band a
+	# save without it names.
+	store.update_settings({"graphicsDetail": 42.0})
+	check(is_equal_approx(float(Store.new(path).get_settings().graphicsDetail), 42.0), "Detail level survives a reload")
+	var legacy_detail := legacy.duplicate(true)
+	legacy_detail.settings = legacy.settings.duplicate(true)
+	check(is_equal_approx(float(Store.migrate(legacy_detail).settings.graphicsDetail), 66.0), "A pre-slider save migrates to the default detail anchor")
+	var corrupt_detail := legacy.duplicate(true)
+	corrupt_detail.settings = legacy.settings.duplicate(true)
+	corrupt_detail.settings.graphicsDetail = "lots"
+	check(is_equal_approx(float(Store.migrate(corrupt_detail).settings.graphicsDetail), 66.0), "A non-numeric detail level is rejected")
+
+	# A slider position must resolve to the band whose anchor it has reached, and
+	# every band must be reachable from its own anchor.
+	check(Quality.level_for_detail(0.0) == "low", "Detail 0 resolves to the low band")
+	check(Quality.level_for_detail(33.0) == "medium", "Detail 33 resolves to the medium band")
+	check(Quality.level_for_detail(66.0) == "high", "Detail 66 resolves to the high band")
+	check(Quality.level_for_detail(100.0) == "ultra", "Detail 100 resolves to the ultra band")
+	check(Quality.level_for_detail(20.0) == "low", "A position below an anchor stays on the lower band")
+	for level in Quality.LEVELS:
+		check(Quality.detail_for_level(level) == float(Quality.LEVEL_DETAIL[level]), "Level %s detail anchor is its own" % level)
+
+	# Intermediate positions must interpolate the continuous values rather than
+	# snapping, and the discrete features must hold at the lower anchor.
+	var low := Quality.preset_for_detail(0.0)
+	var mid := Quality.preset_for_detail(50.0)
+	var ultra := Quality.preset_for_detail(100.0)
+	check(mid.shadow_distance > low.shadow_distance and mid.shadow_distance < ultra.shadow_distance, "Shadow distance interpolates between anchors")
+	check(mid.render_scale > low.render_scale and mid.render_scale <= ultra.render_scale, "Render scale interpolates between anchors")
+	check(not low.ssil and not mid.ssil and ultra.ssil, "SSIL steps on at the band that owns it")
+	check(not low.sdfgi and not mid.sdfgi and ultra.sdfgi, "SDFGI steps on at the band that owns it")
+	check(int(mid.shadow_cascades) == 1, "An integer budget holds at the lower anchor")
 
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	for failure in failures:

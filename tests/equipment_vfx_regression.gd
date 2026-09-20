@@ -51,6 +51,12 @@ func _expect(value:bool,message:String)->void:
 	checks+=1
 	if not value:failures.append(message)
 
+## First recorded screen effect of a kind, or an empty array.
+func _effect(effects:Array,kind:String)->Array:
+	for effect in effects:
+		if str(effect[0])==kind:return effect
+	return []
+
 func _run()->void:
 	var world=MatchStub.new()
 	var system=EQUIPMENT.new()
@@ -118,20 +124,66 @@ func _run()->void:
 	system.throw_item("flashbang",player)
 	var flash:Dictionary=system.items.back()
 	flash.node.position=Vector3.ZERO
-	player.position=Vector3(0,17,0)
+	# A flashbang's effect is now a visibility model rather than a single
+	# line-of-sight test: the blast is sampled through to several points across
+	# the victim, scaled by how much of it they can see. The stub reports every
+	# ray as clear, so the blast is unoccluded and the victim faces it.
+	player.position=Vector3(0,0,2)
+	player.direction=Vector3.FORWARD
 	system._detonate(flash)
-	_expect(world.effects.size()==2 and world.effects[0][1]==0.5,"Flash uses source player body center, including exact range boundary")
+	# The thrower's own screen also takes a concussive shake, so the flash and
+	# deafen are looked up by kind rather than by position in the list.
+	var flash_effect:=_effect(world.effects,"flash")
+	var deafen_effect:=_effect(world.effects,"deafen")
+	_expect(not flash_effect.is_empty() and not deafen_effect.is_empty(),"Flash emits a flash and a deafen through the screen-effect channel")
+	# Standing almost on the blast is the fully-exposed end of the scale, so the
+	# flash must be at its strongest and last the longest there.
+	var centred_intensity:=float(flash_effect[1])
+	var centred_duration:=float(flash_effect[2])
+	_expect(centred_intensity>0.0 and centred_duration>0.0,"An unoccluded point-blank flash is at full strength")
+	system.throw_item("flashbang",player)
+	var far_flash:Dictionary=system.items.back()
+	far_flash.node.position=Vector3.ZERO
+	player.position=Vector3(0,0,14)
+	world.effects.clear()
+	system._detonate(far_flash)
+	var far_effect:=_effect(world.effects,"flash")
+	var far_intensity:=float(far_effect[1])
+	var far_duration:=float(far_effect[2])
+	_expect(far_intensity<centred_intensity and far_duration<centred_duration,"A distant flash is weaker and shorter than a point-blank one")
 	var vfx=VFX.new()
 	root.add_child(vfx)
 	vfx.bullet_impact(Vector3.ZERO,Vector3.UP,true)
-	_expect(vfx.decals.is_empty() and vfx.transients.size()==2,"Actor impacts kick up sparks and blood without a bullet hole")
+	# An impact is now one burst transient whose node is a container owning the
+	# individual particles, so a blast costs one ageing entry rather than one per
+	# spark.
+	_expect(vfx.decals.is_empty() and vfx.transients.size()==1,"Actor impacts kick up sparks and blood without a bullet hole")
+	_expect(vfx.transients[0].node is Node3D and not (vfx.transients[0].node is MeshInstance3D) and vfx.transients[0].parts.size()>0,"Impact is a layered burst of particles under one container")
 	vfx.tick(0.06)
-	_expect(vfx.transients[0].node.material_override.get_shader_parameter("opacity")<1.0,"Impact sparks fade over their lifetime")
+	# Per-particle fade is an instanced uniform now, so the burst can animate
+	# every spark from a single material.
+	var faded:=false
+	var hidden:=false
+	for part in vfx.transients[0].parts:
+		var particle:MeshInstance3D=part.node
+		var fade:Variant=particle.get_instance_shader_parameter("fade")
+		if fade != null and float(fade)<1.0:faded=true
+		if not particle.visible:hidden=true
+	_expect(faded or hidden,"Impact particles fade or expire over their lifetime")
 	for i in range(100):vfx.bullet_hole(Vector3(i,0,0),Vector3.UP)
 	_expect(vfx.decals.size()==96 and vfx.decals[0].position.x==4,"Bullet holes persist with oldest-first recycling at 96")
 	vfx.tracer(Vector3.ZERO,Vector3(0,0,4))
-	var tracer=vfx.transients.back().node
-	_expect(tracer.position==Vector3(0,0,2) and tracer.scale==Vector3(1,4,1),"Tracer uses exact cylinder midpoint and length")
+	var tracer_burst=vfx.transients.back()
+	var tracer_core:MeshInstance3D=tracer_burst.parts[0].node
+	# The round now visibly travels: it spawns at the muzzle and its parent
+	# advances to the segment midpoint over its travel time, while the core
+	# stretches from short to the segment's full length.
+	_expect(tracer_core.scale.y<4.0 and tracer_burst.node.position.z<0.0,"Tracer spawns short at the muzzle and stretches into its segment")
+	vfx.tick(0.02)
+	# The parent advances rather than sitting at the midpoint: each particle keeps
+	# its own local offset, so only the core lands on the midpoint.
+	_expect(absf(tracer_core.position.y-2.0)<0.35,"Tracer reaches the segment midpoint as it stretches")
+	_expect(absf(tracer_core.scale.y-4.0)<0.4,"Tracer reaches the full segment length")
 	vfx.muzzle_flash(Vector3(0,0,1),Vector3.BACK)
 	var muzzle=vfx.transients.back()
 	# A muzzle flash carries a real light, so it illuminates the scene instead of
@@ -144,10 +196,12 @@ func _run()->void:
 		if effect.kind=="light":
 			light_count+=1
 			_expect(effect.node.omni_range==30.0,"Explosion light range scales from the blast radius")
-	_expect(vfx.transients.size()==3 and light_count==1,"Explosion pairs fireball and smoke with one real light")
-	vfx.tick(0.45)
-	_expect(vfx.transients.size()==1 and vfx.transients[0].kind=="smoke","Fireball and its light expire while smoke lingers")
-	vfx.tick(2.0)
+	_expect(vfx.transients.size()==2 and light_count==1,"Explosion pairs one layered blast with one real light")
+	# The light is the shortest-lived half of the blast and outlives the fireball
+	# but not the smoke, so the burst is the only thing left once it expires.
+	vfx.tick(0.6)
+	_expect(vfx.transients.size()==1 and vfx.transients[0].kind=="burst","The blast light expires while the smoke and debris burst lingers")
+	vfx.tick(4.0)
 	_expect(vfx.transients.is_empty(),"Explosion transients expire")
 	system.queue_free()
 	vfx.queue_free()
