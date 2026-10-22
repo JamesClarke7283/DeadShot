@@ -84,6 +84,19 @@ class Arena:
         for sx in [-1, 1]:
             self.add_box("orange", (x + sx * 2.1, 1.6, z + face * (depth / 2 + 0.08)), (0.18, 3.2, 0.2), False)
             self.add_box("glass", (x + sx * (width / 4 + 1), 2.8, z + face * (depth / 2 + 0.035)), (3, 1.5, 0.05), False, False)
+            window_x = x + sx * (width / 4 + 1)
+            facade_z = z + face * (depth / 2 + 0.1)
+            for y in [2.0, 3.6]:
+                self.add_box("trim", (window_x, y, facade_z), (3.25, 0.12, 0.16), False)
+            for dx in [-1.57, 0, 1.57]:
+                self.add_box("trim", (window_x + dx, 2.8, facade_z), (0.1, 1.6, 0.16), False)
+            # Exposed fixings and conduit catch close-range highlights.
+            for y in [0.3, 1.6, 2.9]:
+                self.pipe((x + sx * 2.1, y, facade_z), (x + sx * 2.1, y, facade_z + face * 0.1), 0.045)
+        self.add_box("trim", (x + width / 4, height + 0.65, z), (2.8, 1.0, 2.0), False)
+        for offset in range(-5, 6):
+            self.add_box("wall", (x + width / 4 + offset * 0.22, height + 1.18, z), (0.08, 0.06, 1.8), False)
+        self.pipe((x - width / 2 - 0.1, 0.15, z), (x - width / 2 - 0.1, height, z), 0.08)
         self.add_box("light", (x, 3.5, z + face * (depth / 2 + 0.16)), (1.2, 0.14, 0.18), False)
 
     def container(self, x, z, color, width=5, depth=12):
@@ -93,6 +106,13 @@ class Arena:
                 self.add_box("trim", (x + sx * (width / 2 + 0.04), 1.6, z + dz), (0.08, 2.9, 0.10), False)
             self.pipe((x + sx * (width / 2 - 0.5), 0.25, z + depth / 2 + 0.08),
                       (x + sx * (width / 2 - 0.5), 2.95, z + depth / 2 + 0.08), 0.05)
+            lock_x = x + sx * (width / 2 - 0.5)
+            for y in [0.55, 1.6, 2.65]:
+                self.add_box("trim", (lock_x, y, z + depth / 2 + 0.13), (0.24, 0.1, 0.12), False)
+            self.pipe((lock_x, 1.4, z + depth / 2 + 0.18), (lock_x - sx * 0.55, 1.4, z + depth / 2 + 0.18), 0.045)
+            for dz in [-depth / 2 + 0.15, depth / 2 - 0.15]:
+                for y in [0.15, 3.05]:
+                    self.add_box("trim", (x + sx * (width / 2 + 0.03), y, z + dz), (0.12, 0.22, 0.3), False)
         self.add_box("trim", (x, 3.27, z), (width + 0.12, 0.14, depth + 0.12), False)
 
     def crate(self, x, z):

@@ -76,6 +76,12 @@ func _run() -> void:
 	objectives.blue = 1
 	objectives.red = 1
 	_expect(objectives.check_win(600, 600).over and not objectives.check_win(600, 600).has("winner"), "Timed tie has no winner")
+	var remote = OBJECTIVES.new()
+	match_instance.add_child(remote)
+	remote.setup("dom", match_instance)
+	remote.apply_network_state(JSON.parse_string(JSON.stringify(objectives.network_state())))
+	_expect(remote.blue == objectives.blue and remote.red == objectives.red, "Domination network snapshot restores team scores")
+	_expect(remote.points[0].owner == "blue" and remote.points[0].progress == 0.75, "Domination network snapshot restores ownership and partial capture")
 	objectives.setup("ctf", match_instance)
 	_expect(objectives.flags.size() == 2 and objectives.flags[0].home.z == -62.0 and objectives.flags[1].home.z == 62.0, "CTF flags use original bases")
 	blue_actor.position = Vector3(2.1, 0, 62)
@@ -121,6 +127,18 @@ func _run() -> void:
 	objectives.blue = 0
 	objectives.red = 2
 	_expect(objectives.check_win(600, 600).winner == "red", "Time limit chooses capture leader")
+	objectives.flags[0].status = "carried"
+	objectives.flags[0].carrier = red_actor.actor_id
+	objectives.flags[0].pos = Vector3(12, 1, 20)
+	objectives.flags[1].status = "dropped"
+	objectives.flags[1].carrier = -1
+	objectives.flags[1].pos = Vector3(-4, 2, 9)
+	remote.setup("ctf", match_instance)
+	remote.apply_network_state(JSON.parse_string(JSON.stringify(objectives.network_state())))
+	_expect(remote.red == 2 and remote.blue == 0, "CTF network snapshot restores capture scores")
+	_expect(remote.flags[0].status == "carried" and remote.flags[0].carrier == red_actor.actor_id, "CTF network snapshot restores the flag carrier")
+	_expect(remote.flags[1].status == "dropped" and remote.flags[1].pos == Vector3(-4, 2, 9), "CTF network snapshot restores a dropped flag")
+	_expect(remote.flags[0].group.position == Vector3(12, 1, 20) and remote.flags[1].group.position == remote.flags[1].pos, "CTF snapshot moves the visible flags into place")
 	for failure: String in failures: push_error(failure)
 	print("OBJECTIVE REGRESSION: %d checks, %d failures" % [checks, failures.size()])
 	match_instance.queue_free()

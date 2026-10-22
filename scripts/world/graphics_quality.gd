@@ -74,6 +74,7 @@ const PRESETS := {
 		"pom": false,
 		"contrast": 0.45,
 		"normal_strength": 0.0,
+		"micro_normal_strength": 0.0,
 		"pom_strength": 0.0,
 		"glow_intensity": 0.0,
 		"ssao_intensity": 0.0,
@@ -108,6 +109,7 @@ const PRESETS := {
 		"pom": false,
 		"contrast": 0.7,
 		"normal_strength": 0.0,
+		"micro_normal_strength": 0.0,
 		"pom_strength": 0.0,
 		"glow_intensity": 0.4,
 		"ssao_intensity": 0.0,
@@ -142,6 +144,7 @@ const PRESETS := {
 		"pom": true,
 		"contrast": 1.0,
 		"normal_strength": 1.0,
+		"micro_normal_strength": 0.12,
 		"pom_strength": 0.6,
 		"glow_intensity": 0.5,
 		"ssao_intensity": 0.85,
@@ -170,12 +173,13 @@ const PRESETS := {
 		"fog": true,
 		"volumetric_fog": true,
 		"render_scale": 1.0,
-		"textures": 1024,
+		"textures": 512,
 		"normal": true,
 		"macro": true,
 		"pom": true,
 		"contrast": 1.15,
 		"normal_strength": 1.25,
+		"micro_normal_strength": 0.24,
 		"pom_strength": 1.0,
 		"glow_intensity": 0.62,
 		"ssao_intensity": 1.0,
@@ -192,7 +196,7 @@ const PRESETS := {
 ## anchors. Everything else steps at the anchor that defines it.
 const NUMERIC_KEYS: Array[String] = [
 	"shadow_distance", "shadow_blur", "render_scale", "contrast", "normal_strength",
-	"pom_strength", "glow_intensity", "ssao_intensity", "ssil_intensity",
+	"pom_strength", "micro_normal_strength", "glow_intensity", "ssao_intensity", "ssil_intensity",
 	"sdfgi_energy", "volumetric_density", "viewmodel_detail",
 ]
 

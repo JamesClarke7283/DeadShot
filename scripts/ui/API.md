@@ -76,6 +76,9 @@ format stays readable. A settings dictionary carrying `graphicsDetail` is
 authoritative for the slider; one carrying only `graphics` moves the slider to
 that band's anchor. `SaveStore.migrate()` drops a `graphicsDetail` that is not a
 float, and a save predating it migrates to the default anchor.
+The same `GraphicsDetailSlider` appears directly in the Escape menu and at the
+top of Options. Both persist changes and emit `settings_changed` immediately;
+the live map rebuild is debounced while dragging.
 
 ## Multiplayer and console
 

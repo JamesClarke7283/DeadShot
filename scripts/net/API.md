@@ -12,6 +12,7 @@ Signals match the original callback arguments:
 - `started(settings, seed, players)`
 - `state_received(from, state)`
 - `bots_received(from, bots)`
+- `match_state_received(state)`
 - `hit_received(from, target, damage, headshot, weapon_id)`
 - `death_received(from, victim, killer, weapon_id, headshot)`
 - `event_received(from, kind, data)`
@@ -19,7 +20,7 @@ Signals match the original callback arguments:
 
 Optional missing killer IDs use `-1`; missing weapon IDs use an empty string.
 Senders are `set_ready(bool)`, `set_team("auto" | "blue" | "red")`, `set_settings(settings)`, `start_match()`,
-`send_state(state)`, `send_bots(bots)`, `send_hit(target,damage,headshot,weapon_id)`,
+`send_state(state)`, `send_bots(bots)`, `send_match_state(state)`, `send_hit(target,damage,headshot,weapon_id)`,
 `send_death(victim,killer,weapon_id,headshot)`, `send_event(kind,data)` and
 `disconnect_room()`. Disconnect polls the WebSocket closing handshake.
 
@@ -36,12 +37,27 @@ accepted, including the original `/ws`. `stop()`, `running`, `room_count` and
 `port` and `bind_address` are available. Rooms, host transfer, team choices, ready flags,
 sanitized settings, random match seeds and client-authoritative traffic preserve
 the source server behavior. Only hosts may update settings, start games or send
-bot states. Match traffic never leaves its room and is not echoed to its sender.
+bot and match states. Match traffic never leaves its room and is not echoed to its sender.
+
+The host sends `{"t":"match","s":state}` every 250 ms and immediately at
+match end. State includes `elapsed`, `warmup`, `state`, `winner`, scoreboard
+`scores`, Gun Game `tiers` and `objective` (Domination progress/owners, or CTF
+flag positions/status/carriers and team scores). Only the host advances objective
+rules and declares the winner; clients apply the snapshot. External legacy
+relays that do not forward these snapshots retain local rule simulation.
+
+The relay caches the latest match, player and bot snapshots. Joining a started
+room sends `start` only to the newcomer, using the original seed and match
+settings plus `matchState`, `states` and `bots`. `NetClient.join_state` exposes
+these fields before emitting `started`; `MatchNetwork.restore_join_state()`
+applies them after scene construction. Lobby updates also add newcomers to
+existing matches without resetting the scene. The relay remains alive on the
+results screen until its host leaves, allowing the final snapshot to reach peers.
 
 Join messages optionally carry `team`; later `{"t":"team","team":"red"}`
 messages update the sender's choice before match start and clear their ready
 flag. Roster entries include `teamChoice` as well as effective `team`. Auto
-assign balances new players while preserving existing assignments. FFA and
+assign balances new players, including late arrivals, while preserving existing assignments. FFA and
 Gun Game expose `team: "ffa"` without discarding the stored choice.
 
 `network_address.gd` normalizes pasted `IP:port` values, dials loopback when the

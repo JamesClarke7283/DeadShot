@@ -9,6 +9,7 @@ signal bots_received(from: int, bots: Array)
 signal hit_received(from: int, target: int, damage: float, headshot: bool, weapon_id: String)
 signal death_received(from: int, victim: int, killer: int, weapon_id: String, headshot: bool)
 signal event_received(from: int, kind: String, data: Variant)
+signal match_state_received(state: Dictionary)
 signal peer_left(id: int)
 signal closed
 signal error(message: String)
@@ -23,6 +24,7 @@ var socket: WebSocketPeer
 var _room := ""
 var _player_name := "Player"
 var _preferred_team := "auto"
+var join_state: Dictionary = {}
 var _join_sent := false
 var _connect_started := 0.0
 var _intentional_close := false
@@ -46,6 +48,7 @@ func connect_room(server_url: String, room: String, player_name: String, preferr
 	self_id = -1
 	host_id = -1
 	players.clear()
+	join_state.clear()
 	settings = Protocol.DEFAULT_SETTINGS.duplicate(true)
 	_join_sent = false
 	_intentional_close = false
@@ -102,7 +105,9 @@ func _dispatch(raw: String) -> void:
 		"start":
 			settings = message.get("settings", Protocol.DEFAULT_SETTINGS.duplicate(true))
 			players = message.get("players", [])
+			join_state = {"matchState": message.get("matchState", {}), "states": message.get("states", {}), "bots": message.get("bots", [])}
 			started.emit(settings, int(message.get("seed", 0)), players)
+		"match": match_state_received.emit(message.get("s", {}))
 		"state": state_received.emit(int(message.get("from", -1)), message.get("s", {}))
 		"bots": bots_received.emit(int(message.get("from", -1)), message.get("b", []))
 		"hit": hit_received.emit(int(message.get("from", -1)), int(message.get("target", -1)), float(message.get("dmg", 0)), bool(message.get("headshot", false)), str(message.get("weaponId", "")))
@@ -133,6 +138,9 @@ func send_state(state: Dictionary) -> void:
 
 func send_bots(bots: Array) -> void:
 	_send({"t": "bots", "b": bots})
+
+func send_match_state(state: Dictionary) -> void:
+	_send({"t": "match", "s": state})
 
 func send_hit(target: int, damage: float, headshot: bool, weapon_id: String = "") -> void:
 	var message := {"t": "hit", "target": target, "dmg": damage, "headshot": headshot}

@@ -137,15 +137,19 @@ func _copy_multiplayer_address(address: String) -> void:
 		ui.set_network_status("Copy this address: " + address)
 
 func _network_lobby(players: Array, host_id: int, settings: Dictionary) -> void:
-	if state!="multiplayer" or not is_instance_valid(net):
+	if not is_instance_valid(net):
 		return
 	var ready := false
 	for person in players:
 		if int(person.id)==net.self_id:
 			ready=bool(person.ready)
-	ui.set_lobby_state({"room":network_config.get("room",""),"isHost":net.is_host(),
+	var lobby := {"room":network_config.get("room",""),"isHost":net.is_host(),
 		"selfId":net.self_id,"hostId":host_id,"ready":ready,"players":players,"settings":settings,
-		"shareAddresses":network_config.get("shareAddresses", []),"bindAddress":relay.bind_address if is_instance_valid(relay) else ""})
+		"shareAddresses":network_config.get("shareAddresses", []),"bindAddress":relay.bind_address if is_instance_valid(relay) else ""}
+	if state == "multiplayer":
+		ui.set_lobby_state(lobby)
+	else:
+		ui.lobby_state = lobby
 
 func _network_started(settings: Dictionary, _seed: int, _players: Array) -> void:
 	var options := settings.duplicate(true)
@@ -301,7 +305,7 @@ func leave_match() -> void:
 func _match_finished(result: Dictionary) -> void:
 	_end_replay()
 	ui.clear_screen_effects()
-	_leave_multiplayer()
+	# Keep the relay alive until Continue/Leave so its final state reaches peers.
 	state="post_match"
 	post_result=result
 	Input.mouse_mode=Input.MOUSE_MODE_VISIBLE
@@ -394,14 +398,14 @@ func _tick_quality(dt: float) -> void:
 func _apply_quality_now() -> void:
 	_quality_dirty = false
 	var resolved := QUALITY.current()
-	QUALITY.apply_viewport(get_viewport(), resolved)
+	QUALITY.apply_viewport(get_viewport())
 	# Shader variants are cached per band inside the quality module and per
 	# (band, render-mode) pair inside the material factory; both must be dropped
 	# so rebuilt materials compile against the new band.
 	MATERIALS.clear_variants()
 	if is_instance_valid(game_match):
 		if is_instance_valid(game_match.map):
-			game_match.map.apply_quality(resolved)
+			game_match.map.apply_quality()
 		if game_match.vfx:game_match.vfx.apply_quality(resolved)
 		if is_instance_valid(game_match.player):game_match.player.apply_quality(resolved)
 

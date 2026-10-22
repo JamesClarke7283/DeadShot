@@ -237,6 +237,7 @@ static func create_material(record: Dictionary, _environment: Dictionary = {}, n
 	material.set_shader_parameter("macro_strength", float(record.get("macroStrength", profile.macro)))
 	material.set_shader_parameter("macro_scale", float(record.get("macroScale", profile.macroScale)))
 	material.set_shader_parameter("normal_strength", float(record.get("normalStrength", profile.normal)) * float(quality.normal_strength))
+	material.set_shader_parameter("micro_normal_strength", float(quality.micro_normal_strength))
 	# Parallax is scaled by the band's strength, so a band without POM passes
 	# zero and the march is skipped even though the block is compiled in.
 	material.set_shader_parameter("parallax_depth", float(PARALLAX_DEPTH.get(spec_name, DEFAULT_PARALLAX)) * float(quality.pom_strength))

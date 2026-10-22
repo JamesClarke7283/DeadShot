@@ -47,6 +47,7 @@ func run() -> void:
 		client.started.connect(func(settings, seed, players): packets[i].start = {"settings": settings, "seed": seed, "players": players})
 		client.state_received.connect(func(from, state): packets[i].state = {"from": from, "s": state})
 		client.bots_received.connect(func(from, bots): packets[i].bots = {"from": from, "b": bots})
+		client.match_state_received.connect(func(state): packets[i].match = state)
 		client.hit_received.connect(func(from, target, damage, headshot, weapon): packets[i].hit = [from, target, damage, headshot, weapon])
 		client.death_received.connect(func(from, victim, killer, weapon, headshot): packets[i].death = [from, victim, killer, weapon, headshot])
 		client.event_received.connect(func(from, kind, data): packets[i].event = [from, kind, data])
@@ -71,9 +72,10 @@ func run() -> void:
 	clients[1].set_settings({"mapId": "urban_docks", "mode": "ffa", "botCount": 16})
 	clients[1].start_match()
 	clients[1].send_bots([{"id": 999}])
+	clients[1].send_match_state({"elapsed": 999})
 	await settle()
 	check(clients[0].settings.mapId == "desert_town", "Non-host settings are ignored")
-	check(not packets[0].has("start") and not packets[0].has("bots"), "Only the host can start and send bot state")
+	check(not packets[0].has("start") and not packets[0].has("bots") and not packets[0].has("match"), "Only the host can start and send bot or match state")
 	clients[0].set_settings({"mapId": "forest_facility", "mode": "ffa", "botCount": 99, "difficulty": "invalid", "hardcore": true})
 	await until(func(): return clients[1].settings.mode == "ffa", "Host settings broadcast")
 	check(clients[1].settings.botCount == 16 and clients[1].settings.difficulty == "regular", "Settings sanitize bot count and difficulty")
@@ -94,10 +96,12 @@ func run() -> void:
 	check(not packets[1].has("state"), "Relay does not echo sender state")
 	var bots := [{"id": 100, "x": 4, "y": 0, "z": 8, "yaw": 1.2, "anim": "run", "alive": true, "team": "ffa", "weaponId": "ak47"}]
 	clients[0].send_bots(bots)
+	clients[0].send_match_state({"elapsed": 32, "warmup": 0, "state": "live", "objective": {"blue": 2, "red": 1}})
 	clients[0].send_hit(clients[1].self_id, 42.5, true, "m4")
 	clients[1].send_death(clients[1].self_id, clients[0].self_id, "m4", true)
 	clients[0].send_event("explosion", {"x": 5, "z": 6})
-	await until(func(): return packets[1].has("bots") and packets[1].has("hit") and packets[0].has("death") and packets[1].has("event"), "Bots, hit, death and event all relay")
+	await until(func(): return packets[1].has("bots") and packets[1].has("hit") and packets[0].has("death") and packets[1].has("event") and packets[1].has("match"), "Bots, match, hit, death and event all relay")
+	check(packets[1].match.elapsed == 32 and packets[1].match.objective.blue == 2 and not packets[0].has("match"), "Host match state reaches peers without an echo")
 	# JSON has one numeric type; Godot parses wire numbers as float, so compare
 	# against the same serialized representation rather than native int Variants.
 	check(packets[1].bots.b == JSON.parse_string(JSON.stringify(bots)), "Bot state preserves original wire fields")

@@ -7,6 +7,8 @@ var client
 var is_host := false
 var remotes: Dictionary = {}
 var send_timer := 0.0
+var match_timer := 0.0
+var has_match_state := false
 
 func setup(owner_match, net_client) -> void:
 	game_match = owner_match
@@ -22,6 +24,21 @@ func begin() -> void:
 	client.hit_received.connect(_hit_received)
 	client.death_received.connect(_death_received)
 	client.peer_left.connect(_peer_left)
+	client.lobby.connect(_roster_received)
+	client.match_state_received.connect(apply_match_state)
+
+func restore_join_state() -> void:
+	var initial: Dictionary = client.join_state
+	for actor_id in initial.get("states", {}):
+		_state_received(int(actor_id), initial.states[actor_id])
+	_bots_received(client.host_id, initial.get("bots", []))
+	apply_match_state(initial.get("matchState", {}))
+
+func _roster_received(players: Array, host_id: int, _settings: Dictionary) -> void:
+	is_host = client.self_id == host_id
+	for person in players:
+		if int(person.id) != client.self_id:
+			add_remote(int(person.id), str(person.team), str(person.name))
 
 func team_for_player(id: int) -> String:
 	for person in client.players:
@@ -52,6 +69,9 @@ func add_remote(id: int, team: String, player_name: String):
 	return actor
 
 func tick(dt: float) -> void:
+	match_timer -= dt
+	if is_host and match_timer <= 0.0:
+		publish_match_state()
 	send_timer -= dt
 	if send_timer > 0:
 		return
@@ -68,6 +88,42 @@ func tick(dt: float) -> void:
 				bots.append(value)
 		if not bots.is_empty():
 			client.send_bots(bots)
+
+func publish_match_state() -> void:
+	if not is_host:
+		return
+	match_timer = 0.25
+	client.send_match_state({"elapsed": game_match.elapsed, "warmup": game_match.warmup,
+		"state": game_match.state, "winner": game_match.winner,
+		"scores": game_match.score_rows(), "tiers": game_match.tiers,
+		"objective": game_match.objective.network_state() if game_match.objective else {}})
+
+func apply_match_state(value: Dictionary) -> void:
+	if is_host or value.is_empty():
+		return
+	has_match_state = true
+	game_match.elapsed = float(value.get("elapsed", game_match.elapsed))
+	game_match.warmup = float(value.get("warmup", game_match.warmup))
+	for row in value.get("scores", []):
+		var id := int(row.id)
+		if not game_match.scores.has(id):
+			continue
+		var copy: Dictionary = row.duplicate(true)
+		copy.id = id
+		copy.isPlayer = id == client.self_id
+		game_match.scores[id] = copy
+	for actor_id in value.get("tiers", {}):
+		game_match.tiers[int(actor_id)] = int(value.tiers[actor_id])
+	if game_match.objective:
+		game_match.objective.apply_network_state(value.get("objective", {}))
+	var state: String = str(value.get("state", game_match.state))
+	if state == "end":
+		var winner: Variant = value.get("winner")
+		if winner is float:
+			winner = int(winner)
+		game_match.call_deferred("end_match", winner)
+	elif game_match.state != "end":
+		game_match.state = state
 
 func snapshot(actor) -> Dictionary:
 	var direction: Vector3 = actor.aim_direction()
@@ -118,6 +174,7 @@ func _exit_tree() -> void:
 	if not is_instance_valid(client):
 		return
 	for binding in [[client.state_received,_state_received],[client.bots_received,_bots_received],
-		[client.hit_received,_hit_received],[client.death_received,_death_received],[client.peer_left,_peer_left]]:
+		[client.hit_received,_hit_received],[client.death_received,_death_received],[client.peer_left,_peer_left],
+		[client.lobby,_roster_received],[client.match_state_received,apply_match_state]]:
 		if binding[0].is_connected(binding[1]):
 			binding[0].disconnect(binding[1])

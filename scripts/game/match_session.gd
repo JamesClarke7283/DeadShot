@@ -122,6 +122,8 @@ func start(options: Dictionary, selected_class: Dictionary, settings: Dictionary
 	if mode.id=="gungame":
 		if player:player.set_weapon("m9")
 		loadout.lethal="knife"
+	if network:
+		network.restore_join_state()
 	return true
 
 func tick(dt: float) -> void:
@@ -158,12 +160,15 @@ func tick(dt: float) -> void:
 			_spawn(actor)
 	if streaks:streaks.tick_pickups(dt)
 	_update_pickups(dt)
-	if objective:
+	# Older external relays do not forward match snapshots; retain their local
+	# simulation until an authoritative snapshot establishes native host ownership.
+	var simulates_match: bool = not network or network.is_host or not network.has_match_state
+	if objective and simulates_match:
 		objective.tick(dt)
 	if streaks and mode.id != "gungame":
 		streaks.tick(dt, false)
 	recorder.record(elapsed,snapshot_actors())
-	if state != "end":
+	if state != "end" and simulates_match:
 		_check_win()
 
 func _spawn(actor) -> void:
@@ -495,6 +500,8 @@ func end_match(winner_value:Variant,finalize_play:bool=true) -> void:
 	# ordinary score/time wins also finalize the player's ongoing streak.
 	if finalize_play:_finalize_best_play()
 	winner=winner_value
+	if network:
+		network.publish_match_state()
 	var blue=team_kills("blue")
 	var red=team_kills("red")
 	# Game.ts captures scoreboard team kills in the result for every mode;

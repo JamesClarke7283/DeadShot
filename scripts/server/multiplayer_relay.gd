@@ -90,13 +90,25 @@ func _handle_packet(record: Dictionary, raw: String) -> void:
 		"start":
 			if record.id == room.hostId:
 				room.started = true
-				_broadcast(room, {"t": "start", "settings": room.settings, "seed": randi_range(0, 999999999), "players": _roster(room)})
+				room.matchSettings = room.settings.duplicate(true)
+				_recompute_teams(room)
+				room.seed = randi_range(0, 999999999)
+				room.matchState = {}
+				room.states = {}
+				room.bots = []
+				_broadcast(room, _start_packet(room))
 		"state":
 			if message.get("s") is Dictionary:
+				room.states[str(record.id)] = message.s
 				_broadcast(room, {"t": "state", "from": record.id, "s": message.s}, record.id)
 		"bots":
 			if record.id == room.hostId and message.get("b") is Array:
+				room.bots = message.b
 				_broadcast(room, {"t": "bots", "from": record.id, "b": message.b}, record.id)
+		"match":
+			if record.id == room.hostId and message.get("s") is Dictionary:
+				room.matchState = message.s
+				_broadcast(room, {"t": "match", "s": message.s}, record.id)
 		"hit", "death", "event":
 			var relayed := {"t": message.t, "from": record.id}
 			var fields: Array = {"hit": ["target", "dmg", "headshot", "weaponId"], "death": ["victim", "killer", "weaponId", "headshot"], "event": ["kind", "data"]}[message.t]
@@ -106,7 +118,8 @@ func _handle_packet(record: Dictionary, raw: String) -> void:
 
 func _join(record: Dictionary, room_id: String, player_name: String, preferred_team: String = "auto") -> void:
 	if not _rooms.has(room_id):
-		_rooms[room_id] = {"id": room_id, "players": {}, "hostId": -1, "started": false, "settings": Protocol.DEFAULT_SETTINGS.duplicate(true)}
+		_rooms[room_id] = {"id": room_id, "players": {}, "hostId": -1, "started": false, "seed": 0,
+			"matchState": {}, "states": {}, "bots": [], "matchSettings": {}, "settings": Protocol.DEFAULT_SETTINGS.duplicate(true)}
 	var room: Dictionary = _rooms[room_id]
 	record.id = _next_player
 	_next_player += 1
@@ -119,12 +132,20 @@ func _join(record: Dictionary, room_id: String, player_name: String, preferred_t
 	_recompute_teams(room)
 	_send(record.socket, {"t": "welcome", "id": record.id})
 	_broadcast_lobby(room)
+	if room.started:
+		# Only the newcomer receives start; existing players keep their round.
+		_send(record.socket, _start_packet(room))
+
+func _start_packet(room: Dictionary) -> Dictionary:
+	return {"t": "start", "settings": room.matchSettings, "seed": room.seed, "players": _roster(room),
+		"matchState": room.matchState, "states": room.states, "bots": room.bots}
 
 func _leave(record: Dictionary) -> void:
 	if record.id < 0 or not _rooms.has(record.room):
 		return
 	var room: Dictionary = _rooms[record.room]
 	room.players.erase(record.id)
+	room.states.erase(str(record.id))
 	if room.players.is_empty():
 		_rooms.erase(record.room)
 		return
@@ -136,6 +157,7 @@ func _leave(record: Dictionary) -> void:
 
 func _recompute_teams(room: Dictionary) -> void:
 	var counts := {"blue": 0, "red": 0}
+	var mode: String = str(room.matchSettings.get("mode", room.settings.mode)) if room.started else str(room.settings.mode)
 	# Preserve prior assignments, including across FFA mode changes and leaves.
 	# Only a new player or an explicit Auto selection needs a balanced choice.
 	for record in room.players.values():
@@ -147,7 +169,7 @@ func _recompute_teams(room: Dictionary) -> void:
 		if record.assignedTeam not in ["blue", "red"]:
 			record.assignedTeam = "blue" if counts.blue <= counts.red else "red"
 			counts[record.assignedTeam] += 1
-		record.team = "ffa" if room.settings.mode in ["ffa", "gungame"] else record.assignedTeam
+		record.team = "ffa" if mode in ["ffa", "gungame"] else record.assignedTeam
 
 func _roster(room: Dictionary) -> Array:
 	var roster: Array = []

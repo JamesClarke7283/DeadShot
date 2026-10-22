@@ -17,7 +17,9 @@ a shot sequence so quick shots between network updates still register.
 **Freight Yard** adds container flanks, rail sidings and an enterable warehouse.
 **Snow Outpost** adds four enterable bunkers around a communications courtyard.
 Both support all five modes and include collision, team/FFA spawns and connected
-bot navigation. Rebuild their data with `python tools/build_tactical_maps.py`.
+bot navigation. Window frames, roof ventilation, exterior pipes and container
+door hardware add close-range detail. Rebuild their data with
+`python tools/build_tactical_maps.py`.
 
 ## Graphics
 
@@ -44,8 +46,9 @@ shadow camera has been replaced by the engine's shadow system. See
 
 ### Graphics quality
 
-**OPTIONS → GRAPHICS DETAIL** is a single continuous **0–100** slider: raise it
-for looks, lower it for frame rate. Four named bands sit at anchors along it and
+**Escape → Graphics Detail** adjusts a continuous **0–100** slider during a
+match; the same control is at the top of **Options**. Raise it for finer surfaces
+and lighting, lower it for frame rate. Four named bands sit at anchors along it and
 the **PRESET** row jumps the slider to one of them:
 
 | | detail 0 (Low) | 33 (Medium) | 66 (High, default) | 100 (Ultra) |
@@ -64,7 +67,8 @@ the **PRESET** row jumps the slider to one of them:
 | MSAA | off | off | 2× | 4× |
 | FXAA / TAA | off / off | FXAA / off | off / off | off / on |
 | 3D render scale | 0.8 | 0.9 | 1.0 | 1.0 |
-| Detail texture resolution | 128 | 256 | 256 | 256 |
+| Detail texture resolution | 128 | 256 | 512 | 512 |
+| Fine surface normals | off | off | on | stronger |
 | Concurrent VFX lights | 2 | 4 | 8 | 12 |
 | Viewmodel fill and rim | off | off | on | on |
 
@@ -171,9 +175,10 @@ once per resolution and reused by every family, the family is resolved to an
 integer once outside the pixel loop, and fields are cached per (family,
 resolution) and generated on first use, so a match pays only for the families it
 places. The first per-pixel formulation matched on the family *string* inside
-the loop and took 24 s at 1024², which was a visible freeze; the current one
-generates a family in ~72 ms and is capped at 256 texels, the point past which
-the extra detail stops being resolvable at these tiling rates.
+the loop and took 24 s at 1024², which was a visible freeze. Generation is now
+bounded at 512 texels for High/Ultra. Normalized normal-map mipmaps and explicit
+texture gradients keep distant surfaces stable, while an additional fine normal
+layer brings out close-range grain at those higher settings.
 
 #### Geometry
 
@@ -279,7 +284,10 @@ Choose **Blue team**, **Red team**, or **Auto assign** before joining, or change
 your choice in the lobby. Changing teams clears your ready status. Team choices
 survive other players joining/leaving and switches between team and free-for-all
 modes; free-for-all and Gun Game treat every player as an opponent. Teams lock
-when the match starts.
+for existing players when the match starts. New players can join a running
+match: choose a team before pressing **Join**, and the game loads the current
+map directly. The host supplies the round clock, scores, player/bot snapshots,
+Domination captures and CTF flag state; joining does not restart the round.
 
 ## Export
 
@@ -325,6 +333,7 @@ python tools/run_check.py --script tests/screen_effects_test.gd
 python tools/run_check.py --script tests/graphics_settings_test.gd
 python tools/run_check.py --graphical --script tests/graphics_quality_test.gd
 python tools/run_check.py --script tests/detail_slider_test.gd
+python tools/run_check.py --script tests/join_in_progress.gd
 python tools/run_check.py --script tests/pause_controls_test.gd
 python tools/run_check.py --script tests/net_relay_test.gd
 python tools/run_check.py --script tests/network_lobby.gd

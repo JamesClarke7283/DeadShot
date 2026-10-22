@@ -427,24 +427,29 @@ func _setting(key: String, value: Variant) -> void:
 	store.update_settings({key: value})
 	settings_changed.emit(store.get_settings())
 
+func _graphics_detail_control(parent: Node) -> void:
+	var settings := store.get_settings()
+	var detail := _slider(parent, "Graphics Detail", settings.get("graphicsDetail", 66.0), 0, 100, 1, func(value): _setting("graphicsDetail", value))
+	detail.slider.name = "GraphicsDetailSlider"
+	detail.label.custom_minimum_size.x = 118
+	detail.label.add_theme_font_size_override("font_size", 14)
+	detail.slider.value_changed.connect(func(value):
+		detail.label.text = "%d / 100 · %s" % [int(value), GraphicsQuality.level_for_detail(value).capitalize()])
+	detail.label.text = "%d / 100 · %s" % [int(detail.slider.value), GraphicsQuality.level_for_detail(detail.slider.value).capitalize()]
+	_label(parent, "Lower: faster frames     Higher: finer textures and lighting", 11, UI.MUTED)
+
 func show_options(return_to: String = "main") -> void:
 	settings_return = return_to
 	_switch("options", return_to == "pause")
 	var panel := _center_panel(520, 28)
 	_label(panel, "OPTIONS", 30, UI.GREEN, 900)
+	_graphics_detail_control(panel)
 	var settings := store.get_settings()
 	_slider(panel, "Master Volume", settings.masterVolume, 0, 1, 0.01, func(value): _setting("masterVolume", value))
 	_slider(panel, "SFX Volume", settings.sfxVolume, 0, 1, 0.01, func(value): _setting("sfxVolume", value))
 	_slider(panel, "Music Volume", settings.musicVolume, 0, 1, 0.01, func(value): _setting("musicVolume", value))
 	_slider(panel, "Mouse Sensitivity", settings.sensitivity, 0.1, 3, 0.05, func(value): _setting("sensitivity", value))
 	_slider(panel, "Field of View", settings.fov, 50, 110, 1, func(value): _setting("fov", value))
-	# The graphics control is a single continuous detail slider. Each position
-	# resolves to a named band, shown live next to the value so the trade the
-	# slider is making stays legible rather than being an abstract number.
-	var detail := _slider(panel, "Graphics Detail", settings.get("graphicsDetail", GraphicsQuality.detail_for_level(str(settings.get("graphics", GraphicsQuality.DEFAULT_LEVEL)))), 0, 100, 1, func(value): _setting("graphicsDetail", value))
-	detail.slider.value_changed.connect(func(value):
-		detail.label.text = "%d  %s" % [int(value), GraphicsQuality.level_for_detail(value).capitalize()])
-	detail.label.text = "%d  %s" % [int(detail.slider.value), GraphicsQuality.level_for_detail(detail.slider.value).capitalize()]
 	# Presets are shortcuts onto the same slider, not a separate code path.
 	var presets := _hbox(_section(panel, "Preset"), 8)
 	for level in GraphicsQuality.LEVELS:
@@ -574,8 +579,9 @@ func show_match(hardcore: bool = false) -> void:
 func show_pause() -> void:
 	_switch("pause", true)
 	var networked: bool = not lobby_state.get("shareAddresses", []).is_empty()
-	var panel := _center_panel(500 if networked else 340, 28)
+	var panel := _center_panel(500, 28)
 	_label(panel, "PAUSED", 34, UI.GREEN, 900).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_graphics_detail_control(panel)
 	if networked:
 		_label(panel, "Room " + str(lobby_state.get("room", "")), 14, UI.GREEN)
 		_render_server_address(panel)

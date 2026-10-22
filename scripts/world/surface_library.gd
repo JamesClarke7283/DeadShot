@@ -54,17 +54,16 @@ static var _cloud_cache: Dictionary = {}
 static var _albedo_cache: Dictionary = {}
 
 static func _resolution(size: int) -> int:
-	# 256 texels over the metre-scale tiles these profiles use is already several
-	# texels per centimetre, and the maps tile many times per metre, so the extra
-	# octaves above it cost time without adding resolvable detail.
-	return clampi(size, 64, 256)
+	# High and Ultra preserve 512px detail instead of silently sharing Medium's
+	# 256px maps. Keep a bounded cache and mipmaps for stable distant sampling.
+	return clampi(size, 64, 512)
 
 static func _bank_field(tag: String, size: int) -> PackedByteArray:
 	var key := "%s_%d" % [tag, size]
 	if not _bank.has(key):
 		var noise := FastNoiseLite.new()
 		noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-		noise.frequency = float(BANK_FREQUENCIES[tag])
+		noise.frequency = float(BANK_FREQUENCIES[tag]) * 256.0 / float(size)
 		noise.fractal_type = FastNoiseLite.FRACTAL_FBM
 		noise.fractal_octaves = 4 if tag != "micro" else 3
 		noise.fractal_lacunarity = 2.0
@@ -167,8 +166,8 @@ static func _height_bytes(family: String, size: int) -> PackedByteArray:
 static func _image_from_bytes(size: int, bytes: PackedByteArray) -> Image:
 	return Image.create_from_data(size, size, false, Image.FORMAT_RGB8, bytes)
 
-static func _texture(image: Image) -> ImageTexture:
-	image.generate_mipmaps()
+static func _texture(image: Image, normal_map: bool = false) -> ImageTexture:
+	image.generate_mipmaps(normal_map)
 	return ImageTexture.create_from_image(image)
 
 ## The raw height field, shared by the displacement march and the normal map.
@@ -195,8 +194,8 @@ static func detail_normal(size: int = 256, family: String = "generic") -> Textur
 	var key := "%s_%d" % [family, resolved]
 	if not _normal_cache.has(key):
 		var image := detail_height(resolved, family).duplicate() as Image
-		image.bump_map_to_normal_map(NORMAL_STRENGTH)
-		_normal_cache[key] = _texture(image)
+		image.bump_map_to_normal_map(NORMAL_STRENGTH * float(resolved) / 256.0)
+		_normal_cache[key] = _texture(image, true)
 	return _normal_cache[key]
 
 ## Macro weathering: run-off staining and sun bleaching over tens of metres.
@@ -208,7 +207,7 @@ static func macro_noise(size: int = 256, family: String = "generic") -> Texture2
 		var phase := float(posmod(family.hash(), 1024)) / 1024.0
 		var noise := FastNoiseLite.new()
 		noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-		noise.frequency = 0.004
+		noise.frequency = 0.004 * 256.0 / float(resolved)
 		noise.fractal_type = FastNoiseLite.FRACTAL_FBM
 		noise.fractal_octaves = 5
 		noise.fractal_lacunarity = 2.4
@@ -294,13 +293,13 @@ static func albedo_variation(size: int = 256, family: String = "generic") -> Tex
 		var phase := float(posmod(family.hash(), 512)) / 512.0
 		var tint := FastNoiseLite.new()
 		tint.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-		tint.frequency = 0.016
+		tint.frequency = 0.016 * 256.0 / float(resolved)
 		tint.fractal_type = FastNoiseLite.FRACTAL_FBM
 		tint.fractal_octaves = 3
 		tint.offset = Vector3(phase * 40.0, phase * 17.0, 0.0)
 		var patch := FastNoiseLite.new()
 		patch.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-		patch.frequency = 0.045
+		patch.frequency = 0.045 * 256.0 / float(resolved)
 		patch.fractal_type = FastNoiseLite.FRACTAL_FBM
 		patch.fractal_octaves = 2
 		patch.offset = Vector3(phase * 91.0, phase * 53.0, 0.0)

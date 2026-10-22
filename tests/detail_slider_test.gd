@@ -54,6 +54,10 @@ func _run() -> void:
 	check(QUALITY.detail() >= 100.0, "A band-only save moves the slider to that band's anchor")
 	check(QUALITY.current() == "ultra", "The band-only save resolves to ultra")
 	check(main.game_match.map.world_environment.environment.ssao_enabled, "Ultra turns AO back on")
+	var detailed_material := _first_material(main.game_match.map)
+	var normal_texture: Texture2D = detailed_material.get_shader_parameter("detail_normal")
+	check(normal_texture.get_width() == 512, "High detail uses actual 512px surface maps")
+	check(normal_texture.get_image().has_mipmaps(), "Detailed normals retain mipmaps for distant surfaces")
 
 	# Touching an unrelated setting must not snap an explicitly chosen slider
 	# position back to a named anchor. OPTIONS commits each change to the store
@@ -63,9 +67,44 @@ func _run() -> void:
 	for _frame in range(20):
 		main._tick_quality(0.05)
 	check(QUALITY.detail() == 47.0, "A mid-slider position is honoured")
+	check(is_equal_approx(main.get_viewport().scaling_3d_scale, QUALITY.preset_for_detail(47.0).render_scale), "Debounced viewport settings retain intermediate detail values")
 	store.update_settings({"sensitivity": 1.5})
 	main.apply_settings(store.get_settings())
 	check(QUALITY.detail() == 47.0, "An unrelated setting change leaves the slider where it was put")
+
+	# Exercise the control a player can reach directly with Escape, including
+	# its signal, persistence and a change within the same shader band.
+	var pause_event := InputEventAction.new()
+	pause_event.action = "pause"
+	pause_event.pressed = true
+	main._unhandled_input(pause_event)
+	await process_frame
+	check(main.paused and main.ui.screen == "pause", "Escape opens the pause menu")
+	var slider := main.ui.menu.find_child("GraphicsDetailSlider", true, false) as HSlider
+	check(slider != null, "The detail slider is directly available in Escape")
+	if slider:
+		slider.value = 66.0
+		main._tick_quality(0.2)
+		var high_strength: float = _first_material(main.game_match.map).get_shader_parameter("micro_normal_strength")
+		slider.value = 85.0
+		main._tick_quality(0.2)
+		check(QUALITY.detail() == 85.0 and main.ui.store.get_settings().graphicsDetail == 85.0, "The pause slider applies and saves its chosen value")
+		var smooth_material := _first_material(main.game_match.map)
+		check(float(smooth_material.get_shader_parameter("micro_normal_strength")) > high_strength, "Surface detail increases between positions within the high band")
+		var expected_ao: float = QUALITY.base_number("ssao_intensity") * QUALITY.preset_for_detail(85.0).ssao_intensity
+		check(is_equal_approx(main.game_match.map.world_environment.environment.ssao_intensity, expected_ao), "Environment uses the precise slider position")
+		for argument in OS.get_cmdline_user_args():
+			if argument.begins_with("--capture="):
+				await process_frame
+				await RenderingServer.frame_post_draw
+				root.get_texture().get_image().save_png(argument.trim_prefix("--capture="))
+	main.ui.show_options("pause")
+	await process_frame
+	var options_slider := main.ui.menu.find_child("GraphicsDetailSlider", true, false) as HSlider
+	check(options_slider != null and options_slider.value == 85.0, "Options reflects the detail chosen in Escape")
+	main.ui.show_pause()
+	main.resume_match()
+	check(not main.paused and main.ui.screen == "match", "The player can resume after changing detail")
 
 	var live: bool = main.game_match.state == "live" or main.game_match.state == "warmup"
 	check(live, "The match survives every detail change")

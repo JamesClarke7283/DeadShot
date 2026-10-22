@@ -106,6 +106,35 @@ func hud() -> Dictionary:
 		state.flags = values
 	return state
 
+func network_state() -> Dictionary:
+	var result := {"blue": blue, "red": red, "points": [], "flags": []}
+	for point in points:
+		result.points.append({"label": point.label, "owner": point.owner, "progress": point.progress})
+	for flag in flags:
+		result.flags.append({"team": flag.team, "status": flag.status, "carrier": flag.carrier,
+			"pos": [flag.pos.x, flag.pos.y, flag.pos.z]})
+	return result
+
+func apply_network_state(value: Dictionary) -> void:
+	if value.is_empty():
+		return
+	blue = int(value.get("blue", blue))
+	red = int(value.get("red", red))
+	for incoming in value.get("points", []):
+		for point in points:
+			if point.label == incoming.label:
+				point.owner = str(incoming.owner)
+				point.progress = float(incoming.progress)
+				var color := Color.hex(BLUE if point.owner == "blue" else RED if point.owner == "red" else NEUTRAL).srgb_to_linear()
+				MATERIALS.retint(point.disc.material_override, color)
+	for incoming in value.get("flags", []):
+		for flag in flags:
+			if flag.team == incoming.team:
+				flag.status = str(incoming.status)
+				flag.carrier = int(incoming.carrier)
+				flag.pos = Vector3(incoming.pos[0], incoming.pos[1], incoming.pos[2])
+				flag.group.position = flag.pos
+
 func check_win(elapsed: float, time_limit: float) -> Dictionary:
 	var cap := CTF_CAP if kind == "ctf" else DOM_CAP
 	if blue >= cap or red >= cap:

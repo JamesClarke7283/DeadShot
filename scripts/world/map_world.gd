@@ -53,7 +53,7 @@ func load_map(id: String) -> bool:
 		if bool(data["materials"][key].get("outline", false)):
 			continue
 		_material_hints[key] = _surface_hint(key, data)
-		_materials[key] = MATERIALS.create_material(data["materials"][key], environment_data, _material_hints[key], QUALITY.current())
+		_materials[key] = MATERIALS.create_material(data["materials"][key], environment_data, _material_hints[key])
 		if float(data["materials"][key].get("windStrength", 0.0)) > 0.0:
 			_wind_materials.append(_materials[key])
 	var batches: Dictionary = {}
@@ -112,15 +112,17 @@ func load_map(id: String) -> bool:
 ## snapped the slider back to a band anchor would silently discard an
 ## intermediate position.
 func apply_quality(level: String = "") -> void:
-	var resolved := QUALITY.normalize(level) if not level.is_empty() else QUALITY.current()
 	if world_environment and world_environment.environment:
-		QUALITY.apply_environment(world_environment.environment, sun, resolved)
+		QUALITY.apply_environment(world_environment.environment, sun, level)
 	# Re-read the material source table so the rebuild uses the same profiles.
 	if _source_materials.is_empty():
 		return
 	_materials.clear()
+	_wind_materials.clear()
 	for key: String in _source_materials:
-		_materials[key] = MATERIALS.create_material(_source_materials[key], environment_data, _material_hints.get(key, ""), resolved)
+		_materials[key] = MATERIALS.create_material(_source_materials[key], environment_data, _material_hints.get(key, ""), level)
+		if float(_source_materials[key].get("windStrength", 0.0)) > 0.0:
+			_wind_materials.append(_materials[key])
 	_retarget_materials(get_children())
 
 ## Walks the tree and points every instance at the rebuilt material for its key.

@@ -49,6 +49,7 @@ uniform float detail_min = 0.88;
 uniform float detail_max = 1.0;
 uniform float macro_strength = 0.3;
 uniform float normal_strength = 0.6;
+uniform float micro_normal_strength = 0.0;
 // Surface treatments. Dust settles on upward-facing surfaces and lightens them;
 // grime darkens vertical faces and streaks downward under gravity. Both reuse
 // the weathering map, so they cost nothing extra on a band without MACRO.
@@ -205,6 +206,15 @@ void fragment() {
 	vec3 normal_y = vec3(sample_y.xy + geometric.xz, abs(sample_y.z) * geometric.y);
 	vec3 normal_z = vec3(sample_z.xy + geometric.xy, abs(sample_z.z) * geometric.z);
 	vec3 bumped = normalize(normal_x.zyx * normal_weight.x + normal_y.xzy * normal_weight.y + normal_z.xyz * normal_weight.z);
+	// Finer grain catches small highlights on aggregate, weave and brushed metal.
+	// Explicit gradients and the texture's mip chain keep it stable at distance.
+	vec3 micro_x = textureGrad(detail_normal, normal_uvs[0] * 6.7, sample_dx.zy * 6.7, sample_dy.zy * 6.7).xyz * 2.0 - 1.0;
+	vec3 micro_y = textureGrad(detail_normal, normal_uvs[1] * 6.7, sample_dx.xz * 6.7, sample_dy.xz * 6.7).xyz * 2.0 - 1.0;
+	vec3 micro_z = textureGrad(detail_normal, normal_uvs[2] * 6.7, sample_dx.xy * 6.7, sample_dy.xy * 6.7).xyz * 2.0 - 1.0;
+	vec3 micro = vec3(0.0, micro_x.y, micro_x.x) * normal_weight.x
+		+ vec3(micro_y.x, 0.0, micro_y.y) * normal_weight.y
+		+ vec3(micro_z.x, micro_z.y, 0.0) * normal_weight.z;
+	bumped = normalize(bumped + micro * micro_normal_strength);
 	shaded_normal = normalize(mix(geometric, bumped, normal_strength));
 	// QUALITY_NORMAL_END
 	NORMAL = normalize((VIEW_MATRIX * vec4(shaded_normal, 0.0)).xyz);
