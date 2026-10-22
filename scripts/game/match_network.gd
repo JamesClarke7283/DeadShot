@@ -74,7 +74,9 @@ func snapshot(actor) -> Dictionary:
 	return {"x":actor.position.x,"y":actor.position.y,"z":actor.position.z,
 		"yaw":atan2(direction.x,direction.z) if actor.is_player else actor.rotation.y,
 		"anim":"die" if not actor.alive else ("shoot" if actor.firing else ("run" if actor.moving else "idle")),
-		"alive":actor.alive,"weaponId":actor.weapon.definition.id}
+		"alive":actor.alive,"weaponId":actor.weapon.definition.id,
+		"shotSerial":actor.radar_shots,"shotAge":game_match.ui_time-actor.radar_last_shot,
+		"shotX":actor.radar_shot_position.x,"shotY":actor.radar_shot_position.y,"shotZ":actor.radar_shot_position.z}
 
 func local_death(victim, killer, weapon_id: String, headshot: bool) -> void:
 	if owns(victim):
@@ -107,6 +109,7 @@ func _peer_left(id: int) -> void:
 	if not remotes.has(id):
 		return
 	var actor = remotes[id]
+	game_match.radar.forget(id)
 	game_match.actors.erase(actor)
 	remotes.erase(id)
 	actor.queue_free()

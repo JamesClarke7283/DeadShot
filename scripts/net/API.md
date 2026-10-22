@@ -23,6 +23,12 @@ Senders are `set_ready(bool)`, `set_settings(settings)`, `start_match()`,
 `send_death(victim,killer,weapon_id,headshot)`, `send_event(kind,data)` and
 `disconnect_room()`. Disconnect polls the WebSocket closing handshake.
 
+Player and bot snapshots optionally carry `shotSerial`, `shotAge` (seconds),
+and `shotX`, `shotY`, `shotZ`. The monotonically increasing serial records shots
+that finish between snapshots. Radar uses the captured firing position and the
+remaining reveal time, so subsequent movement or repeated snapshots do not
+extend the contact. Peers without these fields fall back to `anim: "shoot"`.
+
 `scripts/server/multiplayer_relay.gd` extends Node. Add it to a scene and call
 `start(port = 8090, bind_address = '*') -> Error`. Any WebSocket HTTP path is
 accepted, including the original `/ws`. `stop()`, `running`, `room_count` and

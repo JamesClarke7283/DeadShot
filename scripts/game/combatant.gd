@@ -35,6 +35,9 @@ var brain
 var game_match
 var moving: bool = false
 var firing: bool = false
+var radar_shots := 0
+var radar_last_shot := -100.0
+var radar_shot_position := Vector3.ZERO
 var blocked: bool = false
 var aim_dir = Vector3.FORWARD
 var stance: int = 2
@@ -214,6 +217,9 @@ func look_motion(delta: Vector2) -> void:
 	camera.rotation.x = clampf(camera.rotation.x - delta.y * sensitivity * invert, -PI/2 + 0.01, PI/2 - 0.01)
 
 func on_shot() -> void:
+	radar_shots += 1
+	radar_last_shot = game_match.ui_time
+	radar_shot_position = position
 	kick = minf(1.0, kick + 0.5)
 	game_match.shot_fired(self)
 

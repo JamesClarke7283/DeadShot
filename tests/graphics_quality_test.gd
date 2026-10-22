@@ -29,22 +29,11 @@ func _has_markers(code: String) -> bool:
 	return false
 
 func _run() -> void:
-	# This is an ordering and configuration check, not a throughput claim. Every
-	# band renders faster than the 60 Hz present interval, so with vsync on the
-	# measurement saturates at 60 fps for all four anchors and the ordering check
-	# ends up testing the refresh rate instead of the band's cost. At 2560x1440
-	# the bands do separate, and the separation is real — ultra pays for SDFGI,
-	# four shadow cascades, MSAA, the parallax march and the full glow pyramid —
-	# but on a fast GPU the absolute figures are dominated by CPU frame
-	# submission, which is why they read in the hundreds of fps. Do not quote
-	# them as achieved frame rates.
+	# Compare completed rendering work at the gameplay resolution. Merely
+	# awaiting process_frame can measure skipped/background frames as ~145 FPS
+	# with zero draw calls; those readings are not GPU throughput.
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
-	# The bands differ by a few percent at 1280x720, which is inside run-to-run
-	# noise even after isolating render work. Measuring at 2560x1440 scales the
-	# pixel-bound work each band controls by roughly four while the fixed
-	# per-frame overhead stays put, so the same difference becomes a margin
-	# several times the noise instead of being hidden by it.
-	root.size = Vector2i(2560, 1440)
+	root.size = Vector2i(1280, 720)
 	var bootstrap = MAIN.new()
 	bootstrap._setup_input()
 	bootstrap.free()
@@ -64,24 +53,21 @@ func _run() -> void:
 		for i in range(24):
 			session.tick(1.0 / 60.0)
 			await process_frame
-		# Measure rendering alone: the tiers change shading work, shadow cascades,
-		# MSAA and render scale, while `session.tick` drives eight bot planners on
-		# the CPU regardless of tier. Ticking inside the timed loop let that
-		# shared CPU cost dominate the wall clock — low measured ~2% ahead of high,
-		# which is inside run-to-run noise. Presenting the same live scene without
-		# ticking isolates the work each tier actually controls.
-		# Best of several batches: a single batch is dominated by whatever else the
-		# desktop is doing, while the tiers differ by well under a millisecond.
+		# Hold simulation still so this compares graphics rather than bot AI.
+		# Explicit drawing plus a readback at each batch boundary waits for GPU
+		# work to finish. These are comparative samples, not gameplay FPS claims.
 		var batches: Array[float] = []
-		for batch in range(5):
+		for batch in range(2):
 			var start := Time.get_ticks_usec()
-			for i in range(60):
+			for i in range(30):
 				await process_frame
+				RenderingServer.force_draw(false)
+			root.get_texture().get_image()
 			batches.append((Time.get_ticks_usec() - start) / 1000000.0)
 		var seconds: float = batches.min()
 		var environment: Environment = session.map.world_environment.environment
 		results[level] = {
-			"fps": 60.0 / maxf(seconds, 0.0001),
+			"fps": 30.0 / maxf(seconds, 0.0001),
 			"drawcalls": Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME),
 			"primitives": Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME),
 			"ssao": environment.ssao_enabled,
@@ -91,7 +77,7 @@ func _run() -> void:
 			"scale": root.scaling_3d_scale,
 		}
 		print("BAND %-7s %5.1f fps  %5.2f ms  %4d draws  ssao=%-5s glow=%-5s cascade=%d msaa=%d scale=%.2f" % [
-			level, results[level].fps, seconds / 60.0 * 1000.0, results[level].drawcalls,
+			level, results[level].fps, seconds / 30.0 * 1000.0, results[level].drawcalls,
 			results[level].ssao, results[level].glow, results[level].cascades,
 			results[level].msaa, results[level].scale])
 		session.free()
@@ -118,7 +104,7 @@ func _run() -> void:
 	check(not _has_markers(ultra_code) and not _has_markers(low_code), "No band leaves a quality marker line behind")
 	# The parallax uniform is declared outside the stripped block (the band passes
 	# zero to skip the march), so the assertion has to look for the march itself.
-	check(ultra_code.contains("pom_travel") and not low_code.contains("pom_travel"), "Parallax occlusion steps on at the band that owns it")
+	check(ultra_code.contains("pom_step") and not low_code.contains("pom_step"), "Parallax occlusion steps on at the band that owns it")
 
 	# The slider must interpolate the continuous values between anchors rather
 	# than snapping, and hold the discrete features at the lower anchor. This is

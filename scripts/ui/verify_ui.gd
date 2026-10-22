@@ -61,6 +61,14 @@ func _run() -> void:
 	ui.show_prematch()
 	await process_frame
 	verify(ui.match_config.mapId == "desert_town", "Prematch initializes from defaults")
+	for map_id in ["freight_yard", "snow_outpost"]:
+		var entry: Dictionary = GameUI.MAPS.filter(func(map): return map.id == map_id)[0]
+		var label: Label = find_control(ui.menu, func(node): return node is Label and node.text == entry.name)
+		verify(label != null, "New arena is selectable: " + map_id)
+		if label:
+			var card: Button = label.get_parent().get_parent().get_parent()
+			card.pressed.emit()
+			verify(ui.match_config.mapId == map_id, "New arena selection updates match configuration")
 	for slot in 10:
 		ui.show_class_editor(slot)
 		await process_frame

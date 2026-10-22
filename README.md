@@ -1,10 +1,23 @@
 # DeadShot — Godot edition
 
-A native Godot port of DeadShot. The project keeps the source game's three maps,
+A native Godot port of DeadShot. The project includes five maps,
 18 selectable weapons, ten custom classes, five modes, equipment, perks,
 scorestreaks and multiplayer relay protocol. Blender sources and exported GLB
 models live in `assets/maps` and `assets/models`; gameplay and menus run in
 GDScript without a Deno or Three.js runtime.
+
+The tactical minimap shows the full arena layout, your heading and blue teammate
+dots. Enemies spotted by you or a teammate appear in red; firing reveals an
+enemy's last firing position for 2.5 seconds, even behind cover. Visual contacts
+linger for 1.2 seconds after sight is lost; walls and smoke block spotting.
+Free-for-all uses only your own vision. UAV/snapshot pings and radar jamming
+continue to work, and hardcore keeps its hidden HUD. Remote gunfire uses a shot
+sequence so quick shots between network updates still register.
+
+**Freight Yard** adds container flanks, rail sidings and an enterable warehouse.
+**Snow Outpost** adds four enterable bunkers around a communications courtyard.
+Both support all five modes and include collision, team/FFA spawns and connected
+bot navigation. Rebuild their data with `python tools/build_tactical_maps.py`.
 
 ## Graphics
 
@@ -76,15 +89,12 @@ compiling, so a low-band fragment shader genuinely skips the three-plane
 projection, the normal rebuild, the weathering lookup and the parallax march
 instead of sampling them and discarding the result.
 
-`tests/graphics_quality_test.gd` verifies the ordering and each band's
-configuration — the fastest-of-several-batches frame time rises monotonically
-from Low to Ultra, the viewport, shadow, ambient-occlusion and indirect-light
-settings match the preset, the stripped shader really lost the work, and
-switching band mid-match rebuilds the live materials without dropping the
-player out of the match. It is an ordering and configuration check, not a
-throughput claim: on a fast GPU the absolute figures are dominated by CPU frame
-submission, so they read in the hundreds of fps and should not be quoted as
-achieved frame rates.
+`tests/graphics_quality_test.gd` checks relative rendering cost, viewport and
+lighting settings, shader feature removal, and changing detail during a match.
+It explicitly draws each sample and synchronizes the GPU at batch boundaries;
+otherwise skipped background frames can report high FPS while drawing nothing.
+The reported timings include that synchronization and are diagnostic comparisons,
+not achieved gameplay frame rates.
 
 #### Renderer
 
@@ -135,6 +145,12 @@ the parallax occlusion march reads the field directly — which is what keeps
 displacement and shading consistent instead of merely correlated. See
 `scripts/world/surface_library.gd` for the generators and
 `scripts/world/map_material.gd` for the per-family profiles and parallax depths.
+
+The loader generates missing normals on architectural meshes. Parallax uses a
+bracketed depth crossing with explicit texture gradients and fades out on curved,
+distant and grazing surfaces; this prevents unstable mip selection and layer
+jumps while moving. Low-detail materials select the appropriate projection for
+walls as well as floors.
 
 Two further terms keep a surface from reading as one painted panel. Each family
 also carries an **albedo hue variation**: two decorrelated low-frequency fields

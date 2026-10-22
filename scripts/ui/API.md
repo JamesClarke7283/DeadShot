@@ -40,8 +40,10 @@ Its Back button and Escape return to pause; they do not emit `resume_match`.
 - `objective`: `{kind, points:[{label,owner,progress}], blue,red,cap}` or
   `{kind, flags:[{team,status}], blue,red,cap}`; null/empty hides it
 - `streaks`: `[{id,name,cost,score,available}]`
-- `minimap`: `{player:{x,z,yaw}, blips:[{x,z,enemy}],
-  bounds:{minX,maxX,minZ,maxZ}, jammed}`
+- `minimap`: `{player:{x,z,yaw}, blips:[{x,z,enemy,source,alpha}],
+  bounds:{minX,maxX,minZ,maxZ}, layout:[Rect2], name, jammed}`. North is negative Z.
+  Blue dots are teammates; red dots are enemies, and shot contacts have a ring.
+  `RadarSystem` supplies timed last-known contacts; the HUD never queries actors.
 
 `hit_marker(headshot = false)`, `damage_from(angle)` and `add_kill(event)` animate
 feedback; kill event fields match the browser: killer, victim, killerTeam,

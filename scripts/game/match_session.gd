@@ -40,6 +40,7 @@ var dropped_weapons: Array = []
 var prompt: String = ""
 var ui_time: float = 0.0
 var snapshot_pings: Array = []
+var radar = preload("res://scripts/game/radar_system.gd").new()
 var recorder=preload("res://scripts/game/replay_recorder.gd").new(10.0,30.0)
 var best_play:Dictionary={}
 var player_killstreak:int=0
@@ -141,6 +142,7 @@ func tick(dt: float) -> void:
 		actor.tick(dt)
 	if network:
 		network.tick(dt)
+	radar.tick(dt, self)
 	if player and player.alive:
 		if Input.is_action_just_pressed("melee"):
 			melee(player)
@@ -165,6 +167,7 @@ func tick(dt: float) -> void:
 		_check_win()
 
 func _spawn(actor) -> void:
+	radar.forget(actor.actor_id)
 	var candidates: Array = []
 	for point in map.spawn_points:
 		if point.get("team", "") == actor.team:
@@ -319,6 +322,7 @@ func melee(actor) -> void:
 		impact(hit.position,hit.target!=null,hit.normal)
 
 func shot_fired(actor) -> void:
+	radar.record_shot(actor, actor.position, ui_time)
 	weapon_sound.emit(actor.weapon.definition.id,actor.eye_position(),actor.is_player)
 	vfx.muzzle_flash(actor.weapon.shot_muzzle,actor.weapon.shot_direction)
 
@@ -335,6 +339,7 @@ func actor_damaged(actor,source,amount:float) -> void:
 		player_damaged.emit(angle,amount)
 
 func actor_killed(victim,killer,weapon_id:String,headshot:bool,remote_death:bool=false) -> void:
+	radar.forget(victim.actor_id)
 	if streaks:streaks.reset(victim.actor_id)
 	if victim==player:cancel_equipment_charges()
 	if state != "live" and not remote_death:
@@ -532,7 +537,7 @@ func hud_state() -> Dictionary:
 	if not player:
 		return {}
 	var gun=player.weapon
-	var blips:Array=[]
+	var blips:Array=radar.blips(self)
 	var jammed: bool = streaks.is_jammed(player.team) if streaks else false
 	if streaks:
 		for position_ in streaks.active_pings(player.team):
@@ -541,11 +546,13 @@ func hud_state() -> Dictionary:
 		if not jammed and ping.expire>elapsed and ping.team==player.team:
 			blips.append({"x":ping.position.x,"z":ping.position.z,"enemy":true})
 	snapshot_pings=snapshot_pings.filter(func(ping):return ping.expire>elapsed)
+	if jammed:
+		blips.clear()
 	var objective_hud:Dictionary=objective.hud() if objective else {}
 	var blue=int(objective_hud.get("blue",team_kills("blue")))
 	var red=int(objective_hud.get("red",team_kills("red")))
 	var direction:Vector3=player.aim_direction()
-	var result={"health":player.health,"maxHealth":player.max_health,"mag":gun.magazine,"reserve":gun.reserve,"weaponName":gun.definition.name,"blue":blue,"red":red,"mode":mode.id,"timeLeft":maxf(0,float(mode.timeLimit)-elapsed),"spread":18.0*(1-gun.ads_factor)+(10.0 if player.firing else 0.0),"ads":player.ads_factor,"reloading":gun.state=="reloading","alive":player.alive,"deathText":"RESPAWNING IN %d" % ceili(maxf(0,respawn_delay-player.death_timer)),"streakScore":streak_scores[player.actor_id],"prompt":prompt,"objective":objective_hud,"minimap":{"player":{"x":player.position.x,"z":player.position.z,"yaw":atan2(direction.x,direction.z)},"blips":blips,"bounds":map.bounds,"jammed":false}}
+	var result={"health":player.health,"maxHealth":player.max_health,"mag":gun.magazine,"reserve":gun.reserve,"weaponName":gun.definition.name,"blue":blue,"red":red,"mode":mode.id,"timeLeft":maxf(0,float(mode.timeLimit)-elapsed),"spread":18.0*(1-gun.ads_factor)+(10.0 if player.firing else 0.0),"ads":player.ads_factor,"reloading":gun.state=="reloading","alive":player.alive,"deathText":"RESPAWNING IN %d" % ceili(maxf(0,respawn_delay-player.death_timer)),"streakScore":streak_scores[player.actor_id],"prompt":prompt,"objective":objective_hud,"minimap":{"player":{"x":player.position.x,"z":player.position.z,"yaw":atan2(direction.x,direction.z)},"blips":blips,"bounds":map.bounds,"layout":map.radar_layout,"name":map.map_name,"jammed":false}}
 	result.minimap.jammed = jammed
 	if not throw_charges.is_empty():result.prompt=throw_prompt()
 	result.streaks = streaks.hud(player) if streaks else []

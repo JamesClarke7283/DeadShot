@@ -61,6 +61,11 @@ func run() -> void:
 	await until(func():return mirrored_host.target_position.x==20,"Second remote snapshot arrives")
 	mirrored_host.tick(1.0/60)
 	check(is_equal_approx(mirrored_host.position.x,12),"Subsequent snapshots interpolate at source rate")
+	host.player.on_shot()
+	host.player.firing = false
+	host.network.tick(0.05)
+	await until(func():return guest.radar.contacts.has(host.player.actor_id),"A completed shot reveals the remote player through the relay")
+	check(guest.radar.contacts[host.player.actor_id].position.x == 20,"Network gunfire uses the shot snapshot position")
 	var mirrored_guest = host.network.remotes[guest.player.actor_id]
 	mirrored_guest.apply_damage(40,host.player,"m4",true)
 	check(mirrored_guest.health==100,"Local hit does not mutate remote health")

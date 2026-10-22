@@ -28,6 +28,9 @@ func _parse(arguments: PackedStringArray) -> Dictionary:
 
 func _capture() -> void:
 	root.size = Vector2i(1280, 720)
+	var bootstrap = preload("res://scripts/core/main.gd").new()
+	bootstrap._setup_input()
+	bootstrap.free()
 	# The saved tier is applied by Main; a direct SceneTree run restores it here.
 	QUALITY.set_current(str(_options.get("tier", QUALITY.DEFAULT_LEVEL)))
 	QUALITY.apply_viewport(root)

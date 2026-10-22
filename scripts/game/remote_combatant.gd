@@ -28,6 +28,17 @@ func apply_state(value: Dictionary) -> void:
 	remote_animation = str(value.get("anim","idle"))
 	moving = remote_animation == "run"
 	firing = remote_animation == "shoot"
+	# A sequence survives the interval between snapshots, unlike the short fire
+	# animation. Older peers can still reveal via their animation state.
+	var serial := int(value.get("shotSerial", radar_shots))
+	var new_shot := serial > radar_shots if value.has("shotSerial") else firing
+	var shot_age := maxf(0.0, float(value.get("shotAge", 0.0)))
+	if new_shot and alive and shot_age < game_match.radar.SHOT_LIFETIME:
+		var shot_position := Vector3(float(value.get("shotX", target_position.x)), float(value.get("shotY", target_position.y)), float(value.get("shotZ", target_position.z)))
+		game_match.radar.record_shot(self, shot_position, game_match.ui_time - shot_age)
+	radar_shots = serial
+	if not alive:
+		game_match.radar.forget(actor_id)
 
 func mark_dead() -> void:
 	alive = false

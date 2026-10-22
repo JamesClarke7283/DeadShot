@@ -6,12 +6,13 @@ extends Node3D
 const MATERIALS = preload("res://scripts/world/map_material.gd")
 const SurfaceLibrary = preload("res://scripts/world/surface_library.gd")
 const QUALITY = preload("res://scripts/world/graphics_quality.gd")
-const MAP_IDS: Array[String] = ["desert_town", "forest_facility", "urban_docks"]
+const MAP_IDS = preload("res://scripts/world/map_catalog.gd").IDS
 var map_id: String = ""
 var map_name: String = ""
 var spawn_points: Array[Dictionary] = []
 var nav_points: Array[Dictionary] = []
 var collision_boxes: Array[AABB] = []
+var radar_layout: Array[Rect2] = []
 var bounds: Dictionary = {}
 var environment_data: Dictionary = {}
 var terrain_data: Dictionary = {}
@@ -80,6 +81,9 @@ func load_map(id: String) -> bool:
 		var maximum := vector_from_array(record["max"])
 		var box := AABB(minimum, maximum - minimum)
 		collision_boxes.append(box)
+		var center := box.get_center()
+		if box.size.y > 0.6 and box.position.y < height_at(center.x, center.z) + 2.5:
+			radar_layout.append(Rect2(Vector2(minimum.x, minimum.z), Vector2(box.size.x, box.size.z)))
 		var collision := CollisionShape3D.new()
 		var shape := BoxShape3D.new()
 		shape.size = box.size
@@ -135,6 +139,7 @@ func clear_map() -> void:
 	spawn_points.clear()
 	nav_points.clear()
 	collision_boxes.clear()
+	radar_layout.clear()
 	navigation.clear()
 	_mesh_cache.clear()
 	_materials.clear()
@@ -294,6 +299,14 @@ static func _make_mesh(record: Dictionary) -> ArrayMesh:
 	if not uvs.is_empty(): arrays[Mesh.ARRAY_TEX_UV] = uvs
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	if normals.is_empty():
+		# The architectural detail export omits normals. Supplying real face
+		# normals avoids undefined normalisation and incorrect texture projections.
+		var surface := SurfaceTool.new()
+		surface.create_from(mesh, 0)
+		surface.set_smooth_group(-1)
+		surface.generate_normals()
+		mesh = surface.commit()
 	return mesh
 
 func _add_mesh(record: Dictionary) -> void:

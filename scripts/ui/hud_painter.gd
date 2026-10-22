@@ -170,67 +170,62 @@ func _draw_health_ammo() -> void:
 		bar(Rect2(Vector2(20, size.y - 106), Vector2(240, 10)), float(tier) / max_tier, Color("ff9d3a"))
 
 func _draw_radar() -> void:
-	var center := Vector2(size.x - 96, 94)
-	# CSS box shadows sit outside the translucent disc rather than making its
-	# background opaque. Draw only the exposed lower-right shadow edge.
-	draw_arc(center + Vector2(1.5, 1.5), 80.5, -PI / 4, PI * 0.75, 64, UI.INK, 3, true)
-	draw_circle(center, 80, Color("0a1210b3"))
-	draw_circle(center, 78, Color(10.0 / 255, 22.0 / 255, 18.0 / 255, 0.8))
-	draw_arc(center, 79, 0, TAU, 64, UI.INK, 2, true)
-	for radius in [24.42, 48.84, 74.0]:
-		draw_arc(center, radius, 0, TAU, 64, Color(120.0 / 255, 200.0 / 255, 140.0 / 255, 0.25), 1, true)
-	draw_line(center + Vector2(-74, 0), center + Vector2(74, 0), Color("78c88c40"))
-	draw_line(center + Vector2(0, -74), center + Vector2(0, 74), Color("78c88c40"))
 	var radar: Dictionary = state.get("minimap", {})
-	if radar.get("jammed", false):
-		draw_circle(center, 78, Color("1e0c0cd9"))
-		for i in 240:
-			var point := Vector2(randf_range(-76, 76), randf_range(-76, 76))
-			if point.length() < 76:
-				draw_rect(Rect2(center + point, Vector2(2, 2)), Color(1, 1, 1, randf() * 0.25))
-		label_at("NO SIGNAL", center + Vector2(0, 4), 14, Color("ff4d4d"), true)
-		return
-	var player: Dictionary = radar.get("player", {"x": 0, "z": 0, "yaw": 0})
-	var yaw: float = player.get("yaw", 0)
+	var origin := Vector2(size.x - 216, 14)
+	panel(Rect2(origin, Vector2(200, 228)), Color("0a1210e8"), Color("608477"), 8)
+	label_at(str(radar.get("name", "TACTICAL MAP")).to_upper(), origin + Vector2(10, 20), 12)
+	var area := Rect2(origin + Vector2(10, 29), Vector2(180, 180))
+	draw_rect(area, Color("192724"))
 	var bounds: Dictionary = radar.get("bounds", {})
-	if not bounds.is_empty():
-		var corners := PackedVector2Array()
-		for point in [Vector2(bounds.minX, bounds.minZ), Vector2(bounds.maxX, bounds.minZ), Vector2(bounds.maxX, bounds.maxZ), Vector2(bounds.minX, bounds.maxZ), Vector2(bounds.minX, bounds.minZ)]:
-			var offset: Vector2 = (point - Vector2(player.get("x", 0), player.get("z", 0))).rotated(-yaw) * 1.2
-			offset.y = -offset.y
-			corners.append(offset)
-		for index in 4:
-			_radar_line(center, corners[index], corners[index + 1])
-	for blip in radar.get("blips", []):
-		if not blip.get("enemy", true):
-			continue
-		var offset := (Vector2(blip.get("x", 0), blip.get("z", 0)) - Vector2(player.get("x", 0), player.get("z", 0))).rotated(-yaw) * 1.2
-		offset.y = -offset.y
-		if offset.length() < 74:
-			draw_circle(center + offset, 3.5, Color("ff4d4d"))
-	var arrow := PackedVector2Array([center + Vector2(0, -7), center + Vector2(5, 6), center + Vector2(0, 3), center + Vector2(-5, 6), center + Vector2(0, -7)])
+	if bounds.is_empty():
+		return
+	for i in range(1, 4):
+		var step := float(i) * area.size.x / 4.0
+		draw_line(area.position + Vector2(step, 0), area.position + Vector2(step, area.size.y), Color("ffffff0c"))
+		draw_line(area.position + Vector2(0, step), area.position + Vector2(area.size.x, step), Color("ffffff0c"))
+	for footprint: Rect2 in radar.get("layout", []):
+		var corner := radar_point(footprint.position, bounds, area)
+		var end := radar_point(footprint.end, bounds, area)
+		var rect := Rect2(corner, end - corner).intersection(area)
+		if rect.has_area():
+			draw_rect(rect, Color("5b716a"))
+			draw_rect(rect, Color("99b0a064"), false, 0.6)
+	label_at("N", area.position + Vector2(area.size.x - 12, 13), 10, UI.MUTED)
+	if radar.get("jammed", false):
+		draw_rect(area, Color("240d13de"))
+		label_at("NO SIGNAL", area.get_center() + Vector2(0, 4), 14, Color("ff7272"), true)
+	else:
+		for blip in radar.get("blips", []):
+			var point := radar_point(Vector2(blip.get("x", 0), blip.get("z", 0)), bounds, area)
+			point = point.clamp(area.position + Vector2.ONE * 4, area.end - Vector2.ONE * 4)
+			var enemy: bool = blip.get("enemy", true)
+			var color := Color("ff625e") if enemy else Color("63baff")
+			color.a = float(blip.get("alpha", 1.0))
+			if blip.get("source", "") == "shot":
+				draw_arc(point, 6.5, 0, TAU, 20, Color(color, color.a * 0.6), 1.2, true)
+			draw_circle(point, 4.2, UI.INK)
+			draw_circle(point, 3.0, color)
+	var player: Dictionary = radar.get("player", {})
+	var point := radar_point(Vector2(player.get("x", 0), player.get("z", 0)), bounds, area)
+	point = point.clamp(area.position + Vector2.ONE * 7, area.end - Vector2.ONE * 7)
+	var yaw: float = player.get("yaw", 0.0)
+	var forward := Vector2(sin(yaw), cos(yaw))
+	var side := Vector2(-forward.y, forward.x)
+	var arrow := PackedVector2Array([point + forward * 8, point - forward * 5 + side * 5, point - forward * 2, point - forward * 5 - side * 5])
 	draw_colored_polygon(arrow, UI.GREEN)
-	draw_polyline(arrow, UI.INK, 1.5, true)
+	arrow.append(arrow[0])
+	draw_polyline(arrow, UI.INK, 1.3, true)
+	label_at("ALLY", origin + Vector2(10, 222), 9, Color("63baff"))
+	label_at("ENEMY / SHOT", origin + Vector2(61, 222), 9, Color("ff625e"))
 
-func _radar_line(center: Vector2, start: Vector2, end: Vector2) -> void:
-	# Clip each edge against the radar circle, like the source canvas clip path.
-	# Clamping corners would turn distant rectangular boundaries into trapezoids.
-	var direction := end - start
-	var quadratic_a := direction.length_squared()
-	if quadratic_a < 0.001:
-		return
-	var quadratic_b := 2 * start.dot(direction)
-	var quadratic_c := start.length_squared() - 76 * 76
-	var discriminant := quadratic_b * quadratic_b - 4 * quadratic_a * quadratic_c
-	if discriminant < 0:
-		return
-	var lower := maxf(0, (-quadratic_b - sqrt(discriminant)) / (2 * quadratic_a))
-	var upper := minf(1, (-quadratic_b + sqrt(discriminant)) / (2 * quadratic_a))
-	if upper >= lower:
-		draw_line(center + start + direction * lower, center + start + direction * upper, Color("78c88c66"), 1.5, true)
+static func radar_point(point: Vector2, bounds: Dictionary, area: Rect2) -> Vector2:
+	var minimum := Vector2(bounds.minX, bounds.minZ)
+	var extent := Vector2(bounds.maxX - bounds.minX, bounds.maxZ - bounds.minZ)
+	var scale_factor := minf(area.size.x / maxf(extent.x, 1.0), area.size.y / maxf(extent.y, 1.0))
+	return area.get_center() + (point - minimum - extent * 0.5) * scale_factor
 
 func _draw_streaks() -> void:
-	var y := 188.0
+	var y := 252.0
 	for entry in state.get("streaks", []):
 		var available: bool = entry.get("available", false)
 		var style := UI.box(Color("0a0c1099"), UI.GREEN if available else UI.INK, 7, 2, 0)
@@ -253,12 +248,14 @@ func _draw_streaks() -> void:
 
 func _draw_kills() -> void:
 	var y := 126.0
+	# Reserve the upper-right corner for the tactical map.
+	var right := size.x - 230.0
 	for entry in kills:
 		var killer: String = entry.get("killer", "☠")
 		var victim: String = entry.get("victim", "")
 		var weapon := " ▸ %s%s ▸ " % [str(entry.get("weaponId", "—")).to_upper(), " ☠" if entry.get("headshot", false) else ""]
 		var widths := [heavy.get_string_size(killer, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x, heavy.get_string_size(weapon, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x, heavy.get_string_size(victim, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x]
-		var x: float = size.x - 16 - widths[0] - widths[1] - widths[2] - 16
+		var x: float = right - widths[0] - widths[1] - widths[2] - 16
 		panel(Rect2(Vector2(x, y), Vector2(widths[0] + widths[1] + widths[2] + 16, 26)), Color("0a0c10b3"), Color("ffffff1f"), 5)
 		label_at(killer, Vector2(x + 8, y + 18), 13, team_color(entry.get("killerTeam", "ffa")))
 		label_at(weapon, Vector2(x + 8 + widths[0], y + 18), 13, Color("ff4d4d") if entry.get("headshot", false) else UI.MUTED)

@@ -85,10 +85,10 @@ vec3 triplanar_weight(vec3 normal) {
 	return weight / max(dot(weight, vec3(1.0)), 0.0001);
 }
 
-float triplanar_field(sampler2D field, vec2 uvs[3], vec3 weight) {
-	return texture(field, uvs[0]).r * weight.x
-		+ texture(field, uvs[1]).r * weight.y
-		+ texture(field, uvs[2]).r * weight.z;
+float triplanar_field(sampler2D field, vec2 uvs[3], vec3 weight, vec3 dx, vec3 dy) {
+	return textureGrad(field, uvs[0], dx.zy, dy.zy).r * weight.x
+		+ textureGrad(field, uvs[1], dx.xz, dy.xz).r * weight.y
+		+ textureGrad(field, uvs[2], dx.xy, dy.xy).r * weight.z;
 }
 
 vec2[3] triplanar_uvs(vec3 position) {
@@ -116,45 +116,38 @@ void fragment() {
 	// depth. The offset is applied to the projection position before every
 	// sample, so grain, normal and weathering all agree on the same surface.
 	vec3 sample_position = world_position;
+	// Derivatives come from the undisplaced surface, before divergent ray steps.
+	// This keeps mip selection stable while the camera crosses layer boundaries.
+	vec3 sample_dx = dFdx(world_position) * texture_scale;
+	vec3 sample_dy = dFdy(world_position) * texture_scale;
 	// QUALITY_POM_BEGIN
 	if (parallax_depth > 0.0) {
-		// The dominant axis keeps the march in one plane: stepping a blend of
-		// three projections at different rates samples incoherent heights and
-		// tears the surface at the seams.
-		vec3 pom_axis = step(vec3(0.5), abs(geometric));
-		vec2 pom_uv = pom_axis.z > 0.5 ? world_position.xy : (pom_axis.y > 0.5 ? world_position.xz : world_position.zy);
-		vec2 pom_view = pom_axis.z > 0.5 ? view_direction.xy : (pom_axis.y > 0.5 ? view_direction.xz : view_direction.zy);
-		// The component of the view direction along the plane's own normal, which
-		// is what sets how far the ray travels across the height field.
-		float pom_normal_view = pom_axis.z > 0.5 ? view_direction.z : (pom_axis.y > 0.5 ? view_direction.y : view_direction.x);
-		// Grazing views travel further across the height field, so the step
-		// length scales with the tangent; the floor keeps it finite at the
-		// horizon.
-		vec2 pom_travel = pom_view / max(abs(pom_normal_view), 0.25) * parallax_depth;
-		vec2 pom_step = pom_travel * 0.125;
-		// The height field is the grain itself: the march descends through it and
-		// stops where the ray passes below the stored height.
-		vec2 pom_shift = vec2(0.0);
-		float pom_t = 0.0;
-		float pom_previous_t = 0.0;
-		float pom_previous_h = 1.0;
-		float pom_h = 1.0;
+		vec3 axes = abs(geometric);
+		bool along_z = axes.z >= axes.x && axes.z >= axes.y;
+		bool along_y = !along_z && axes.y >= axes.x;
+		vec2 pom_uv = along_z ? world_position.xy : (along_y ? world_position.xz : world_position.zy);
+		vec2 pom_view = along_z ? view_direction.xy : (along_y ? view_direction.xz : view_direction.zy);
+		vec2 pom_dx = along_z ? sample_dx.xy : (along_y ? sample_dx.xz : sample_dx.zy);
+		vec2 pom_dy = along_z ? sample_dy.xy : (along_y ? sample_dy.xz : sample_dy.zy);
+		float normal_view = along_z ? view_direction.z : (along_y ? view_direction.y : view_direction.x);
+		float fade = smoothstep(0.15, 0.4, abs(normal_view));
+		fade *= 1.0 - smoothstep(14.0, 35.0, distance(INV_VIEW_MATRIX[3].xyz, world_position));
+		fade *= smoothstep(0.8, 0.98, max(axes.x, max(axes.y, axes.z)));
+		vec2 pom_step = -pom_view / max(abs(normal_view), 0.25) * parallax_depth * fade * 0.125;
+		vec2 shift = vec2(0.0);
+		float ray_depth = 0.0;
+		float height_depth = 1.0 - textureGrad(detail_noise, pom_uv * texture_scale, pom_dx, pom_dy).r;
+		float previous_delta = height_depth;
 		for (int step_index = 1; step_index <= 8; step_index++) {
-			pom_previous_t = pom_t;
-			pom_previous_h = pom_h;
-			pom_t = float(step_index) * 0.125;
-			pom_shift += pom_step;
-			pom_h = texture(detail_noise, (pom_uv + pom_shift) * texture_scale).r;
-			if (pom_h <= 1.0 - pom_t) break;
+			previous_delta = height_depth - ray_depth;
+			shift += pom_step;
+			ray_depth = float(step_index) * 0.125;
+			height_depth = 1.0 - textureGrad(detail_noise, (pom_uv + shift) * texture_scale, pom_dx, pom_dy).r;
+			if (ray_depth >= height_depth) break;
 		}
-		// Refine between the bracketing layers so the offset is continuous rather
-		// than quantised to the march's eight steps.
-		float pom_before = pom_previous_h - (1.0 - pom_previous_t);
-		float pom_after = pom_h - (1.0 - pom_t);
-		float pom_fraction = clamp(pom_before / max(pom_before - pom_after, 0.0001), 0.0, 1.0);
-		vec2 pom_final = pom_step * ((pom_previous_t + pom_fraction * (pom_t - pom_previous_t)) * 8.0);
-		vec3 pom_offset = pom_axis.z > 0.5 ? vec3(pom_final, 0.0) : (pom_axis.y > 0.5 ? vec3(pom_final.x, 0.0, pom_final.y) : vec3(0.0, pom_final.x, pom_final.y));
-		sample_position += pom_offset;
+		float fraction = clamp(previous_delta / max(previous_delta + ray_depth - height_depth, 0.0001), 0.0, 1.0);
+		vec2 final_shift = shift - pom_step * (1.0 - fraction);
+		sample_position += along_z ? vec3(final_shift, 0.0) : (along_y ? vec3(final_shift.x, 0.0, final_shift.y) : vec3(0.0, final_shift.x, final_shift.y));
 	}
 	// QUALITY_POM_END
 
@@ -167,17 +160,23 @@ void fragment() {
 	// one tile fixes it — the repeat is the problem, not the detail.
 	float grain = 0.5;
 	// QUALITY_PLANAR_BEGIN
-	grain = texture(detail_noise, sample_position.xz * texture_scale).r;
-	grain = mix(grain, texture(detail_noise, sample_position.xz * texture_scale * 0.31).r, 0.42);
+	vec3 planar_axes = abs(geometric);
+	bool planar_z = planar_axes.z >= planar_axes.x && planar_axes.z >= planar_axes.y;
+	bool planar_y = !planar_z && planar_axes.y >= planar_axes.x;
+	vec2 planar_uv = (planar_z ? sample_position.xy : (planar_y ? sample_position.xz : sample_position.zy)) * texture_scale;
+	vec2 planar_dx = planar_z ? sample_dx.xy : (planar_y ? sample_dx.xz : sample_dx.zy);
+	vec2 planar_dy = planar_z ? sample_dy.xy : (planar_y ? sample_dy.xz : sample_dy.zy);
+	grain = textureGrad(detail_noise, planar_uv, planar_dx, planar_dy).r;
+	grain = mix(grain, textureGrad(detail_noise, planar_uv * 0.31, planar_dx * 0.31, planar_dy * 0.31).r, 0.42);
 	// QUALITY_PLANAR_END
 	// QUALITY_TRIPLANAR_BEGIN
-	grain = triplanar_field(detail_noise, triplanar_uvs(sample_position), triplanar_weight(geometric));
+	grain = triplanar_field(detail_noise, triplanar_uvs(sample_position), triplanar_weight(geometric), sample_dx, sample_dy);
 	// The second scale is offset and rotated so its tile boundaries never line up
 	// with the first, which is what makes the blend hide the period instead of
 	// merely softening it.
 	vec3 second_scale = sample_position * texture_scale * 0.29;
 	vec2 alternate_uvs[3] = vec2[3](second_scale.zy + vec2(0.37, 0.11), second_scale.xz + vec2(0.63, 0.29), second_scale.xy + vec2(0.19, 0.71));
-	grain = mix(grain, triplanar_field(detail_noise, alternate_uvs, triplanar_weight(geometric)), 0.42);
+	grain = mix(grain, triplanar_field(detail_noise, alternate_uvs, triplanar_weight(geometric), sample_dx * 0.29, sample_dy * 0.29), 0.42);
 	// QUALITY_TRIPLANAR_END
 
 	// Weathering, independent of the detail projection.
@@ -199,9 +198,9 @@ void fragment() {
 	// QUALITY_NORMAL_BEGIN
 	vec3 normal_weight = triplanar_weight(geometric);
 	vec2 normal_uvs[3] = triplanar_uvs(sample_position);
-	vec3 sample_x = texture(detail_normal, normal_uvs[0]).xyz * 2.0 - 1.0;
-	vec3 sample_y = texture(detail_normal, normal_uvs[1]).xyz * 2.0 - 1.0;
-	vec3 sample_z = texture(detail_normal, normal_uvs[2]).xyz * 2.0 - 1.0;
+	vec3 sample_x = textureGrad(detail_normal, normal_uvs[0], sample_dx.zy, sample_dy.zy).xyz * 2.0 - 1.0;
+	vec3 sample_y = textureGrad(detail_normal, normal_uvs[1], sample_dx.xz, sample_dy.xz).xyz * 2.0 - 1.0;
+	vec3 sample_z = textureGrad(detail_normal, normal_uvs[2], sample_dx.xy, sample_dy.xy).xyz * 2.0 - 1.0;
 	vec3 normal_x = vec3(sample_x.xy + geometric.zy, abs(sample_x.z) * geometric.x);
 	vec3 normal_y = vec3(sample_y.xy + geometric.xz, abs(sample_y.z) * geometric.y);
 	vec3 normal_z = vec3(sample_z.xy + geometric.xy, abs(sample_z.z) * geometric.z);

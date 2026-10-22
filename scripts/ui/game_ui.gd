@@ -21,11 +21,7 @@ const Store := preload("res://scripts/persistence/save_store.gd")
 const Hud := preload("res://scripts/ui/hud_painter.gd")
 const Touch := preload("res://scripts/ui/touch_controls.gd")
 const GraphicsQuality := preload("res://scripts/world/graphics_quality.gd")
-const MAPS := [
-	{"id": "desert_town", "name": "Desert Town", "description": "Flat sandy town — long main-street sightlines and alley CQB."},
-	{"id": "forest_facility", "name": "Forest Facility", "description": "Rolling forested hills with concrete bunkers and a radar dish — medium-range lanes."},
-	{"id": "urban_docks", "name": "Urban Docks", "description": "Flat concrete waterfront — container lanes, cranes and tight CQB."},
-]
+const MAPS = preload("res://scripts/world/map_catalog.gd").ENTRIES
 const MODES := [{"id": "tdm", "name": "TEAM DEATHMATCH"}, {"id": "ffa", "name": "FREE-FOR-ALL"}, {"id": "dom", "name": "DOMINATION"}, {"id": "ctf", "name": "CAPTURE THE FLAG"}, {"id": "gungame", "name": "GUN GAME"}]
 const DIFFICULTIES := [{"id": "recruit", "name": "Recruit"}, {"id": "regular", "name": "Regular"}, {"id": "veteran", "name": "Veteran"}]
 var store := Store.new()
@@ -352,7 +348,10 @@ func show_prematch() -> void:
 	_label(panel, "PRE-MATCH LOBBY", 34, UI.GREEN, 900)
 	panel.get_child(0).add_theme_font_override("font", UI.font(900, 2))
 	var maps := _section(panel, "Map")
-	var map_row := _hbox(maps, 12)
+	var map_row := HFlowContainer.new()
+	map_row.add_theme_constant_override("h_separation", 10)
+	map_row.add_theme_constant_override("v_separation", 10)
+	maps.add_child(map_row)
 	var map_group := ButtonGroup.new()
 	for map in MAPS:
 		var card := Button.new()
@@ -360,7 +359,7 @@ func show_prematch() -> void:
 		card.button_group = map_group
 		card.button_pressed = match_config.mapId == map.id
 		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		card.custom_minimum_size = Vector2(220, 100)
+		card.custom_minimum_size = Vector2(220, 90)
 		card.add_theme_font_size_override("font_size", 13)
 		card.add_theme_color_override("font_color", UI.WHITE)
 		card.add_theme_color_override("font_pressed_color", UI.WHITE)
