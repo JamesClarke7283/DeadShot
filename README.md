@@ -6,13 +6,13 @@ scorestreaks and multiplayer relay protocol. Blender sources and exported GLB
 models live in `assets/maps` and `assets/models`; gameplay and menus run in
 GDScript without a Deno or Three.js runtime.
 
-The tactical minimap shows the full arena layout, your heading and blue teammate
-dots. Enemies spotted by you or a teammate appear in red; firing reveals an
-enemy's last firing position for 2.5 seconds, even behind cover. Visual contacts
-linger for 1.2 seconds after sight is lost; walls and smoke block spotting.
-Free-for-all uses only your own vision. UAV/snapshot pings and radar jamming
-continue to work, and hardcore keeps its hidden HUD. Remote gunfire uses a shot
-sequence so quick shots between network updates still register.
+The large tactical minimap shows the full arena layout, an enlarged player arrow,
+blue teammates and live red enemy dots, including enemies behind walls or smoke.
+Gunfire adds a pulsing ring for 2.5 seconds. Red diamonds with distance labels
+also mark enemies through cover in the game view; enemies outside the view get
+edge arrows. Dead enemies disappear immediately. UAV/snapshot pings and radar
+jamming continue to work, and hardcore keeps its hidden HUD. Remote gunfire uses
+a shot sequence so quick shots between network updates still register.
 
 **Freight Yard** adds container flanks, rail sidings and an enterable warehouse.
 **Snow Outpost** adds four enterable bunkers around a communications courtyard.

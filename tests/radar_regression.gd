@@ -34,16 +34,16 @@ func run() -> void:
 	await physics_frame
 	await physics_frame
 	session.radar.tick(0.2, session)
-	check(enemy_blips(session).is_empty(), "Walls hide silent enemies")
-	check(session.hud_state().minimap.blips.size() == 1, "Living teammate is always marked")
+	check(enemy_blips(session).size() == 1, "Silent enemies remain visible through walls")
+	check(session.hud_state().minimap.blips.size() == 2, "Both teams remain marked")
 	enemy.on_shot()
 	var blips := enemy_blips(session)
 	check(blips.size() == 1 and blips[0].source == "shot", "Enemy gunfire reveals a dot through cover")
 	var shot_x: float = blips[0].x
 	enemy.position.x += 4
-	check(enemy_blips(session)[0].x == shot_x, "Gunfire reveals the firing location without tracking hidden movement")
+	check(enemy_blips(session)[0].x == shot_x + 4, "Enemy marker tracks movement through cover")
 	session.ui_time += 2.6
-	check(enemy_blips(session).is_empty(), "Shot contact expires after 2.5 seconds")
+	check(enemy_blips(session).size() == 1 and enemy_blips(session)[0].source == "enemy", "Shot ring expires while the live enemy marker stays")
 	enemy.position = Vector3(-20, 0, 0)
 	await physics_frame
 	session.radar.tick(0.2, session)
@@ -51,7 +51,7 @@ func run() -> void:
 	session.radar.contacts.clear()
 	player.rotation.y = PI / 2
 	session.radar.tick(0.2, session)
-	check(enemy_blips(session).is_empty(), "Enemies behind the player are not automatically spotted")
+	check(enemy_blips(session).size() == 1, "Enemies behind the player stay on the map")
 	ally.position = Vector3(-30, 0, 0)
 	ally.aim_dir = Vector3.RIGHT
 	session.radar.tick(0.2, session)
@@ -60,7 +60,7 @@ func run() -> void:
 	session.radar.contacts.clear()
 	session.equipment.items.append({"id": "smoke", "active": true, "detonated": true, "effect_point": Vector3(-25, 0, 0)})
 	session.radar.tick(0.2, session)
-	check(enemy_blips(session).is_empty(), "Smoke blocks visual spotting")
+	check(enemy_blips(session).size() == 1, "Smoke does not hide live markers")
 	session.equipment.items.clear()
 	enemy.on_shot()
 	session.streaks.counter_uav[player.team] = 100.0
@@ -70,16 +70,32 @@ func run() -> void:
 	enemy.alive = false
 	check(enemy_blips(session).is_empty(), "Dead enemies lose their contact")
 	enemy.alive = true
-	check(enemy_blips(session).is_empty(), "Respawn does not resurrect an old contact")
-	# FFA never shares a same-team ally's vision, and every other player is hostile.
+	check(enemy_blips(session).size() == 1 and enemy_blips(session)[0].source == "enemy", "Respawn restores the live marker without an old shot pulse")
+	# Every other player is marked as hostile in FFA.
 	player.team = "ffa"
 	enemy.team = "ffa"
 	ally.team = "ffa"
 	session.radar.contacts.clear()
 	session.radar.tick(0.2, session)
-	check(enemy_blips(session).is_empty(), "FFA does not share spotting")
+	check(enemy_blips(session).size() == 2, "FFA marks every other living player")
 	enemy.on_shot()
-	check(enemy_blips(session).size() == 1, "FFA opponent gunfire reveals normally")
+	check(enemy_blips(session).filter(func(blip): return blip.source == "shot").size() == 1, "FFA opponent gunfire still pulses")
+	# World-space indicators do not use visibility rays either.
+	player.team = "blue"
+	enemy.team = "red"
+	ally.team = "blue"
+	player.rotation.y = -PI / 2
+	enemy.position = Vector3(-24, 0, -12)
+	var markers: Array = session.hud_state().enemyIndicators
+	check(markers.size() == 1 and not markers[0].behind, "Front-facing enemy gets a world marker through a wall")
+	check(markers[0].point.is_finite(), "Projected enemy marker is finite")
+	enemy.position = Vector3(-44, 0, 0)
+	markers = session.hud_state().enemyIndicators
+	check(markers.size() == 1 and markers[0].behind and markers[0].point.is_finite(), "Rear enemy gets a finite edge indicator")
+	enemy.position = player.position
+	markers = session.hud_state().enemyIndicators
+	check(markers[0].point.is_finite(), "Camera-plane marker avoids division by zero")
+	check(Hud.RADAR_MAP_SIZE >= 280 and Hud.PLAYER_ARROW_SIZE >= 15, "Map and player arrow are enlarged")
 	# A completed click can fall entirely between network snapshots.
 	var remote = Remote.new()
 	session.add_child(remote)

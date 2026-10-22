@@ -1,6 +1,9 @@
 extends Control
 ## Pixel-positioned HUD matching the browser canvas overlay.
 const UI := preload("res://scripts/ui/ui_theme.gd")
+const RADAR_SIZE := Vector2(304, 336)
+const RADAR_MAP_SIZE := 280.0
+const PLAYER_ARROW_SIZE := 15.0
 var state: Dictionary = {"health": 100, "maxHealth": 100, "mag": 30, "reserve": 90, "weaponName": "M4A1", "blue": 0, "red": 0, "mode": "tdm", "timeLeft": 600, "spread": 4, "alive": true}
 var hardcore := false
 var kills: Array = []
@@ -75,6 +78,8 @@ func _draw() -> void:
 	var center := size * 0.5
 	var alive: bool = state.get("alive", true)
 	if not hardcore:
+		if alive and not state.get("killcam", false):
+			_draw_enemy_indicators()
 		_draw_score()
 		_draw_health_ammo()
 		_draw_radar()
@@ -171,10 +176,10 @@ func _draw_health_ammo() -> void:
 
 func _draw_radar() -> void:
 	var radar: Dictionary = state.get("minimap", {})
-	var origin := Vector2(size.x - 216, 14)
-	panel(Rect2(origin, Vector2(200, 228)), Color("0a1210e8"), Color("608477"), 8)
-	label_at(str(radar.get("name", "TACTICAL MAP")).to_upper(), origin + Vector2(10, 20), 12)
-	var area := Rect2(origin + Vector2(10, 29), Vector2(180, 180))
+	var origin := Vector2(size.x - RADAR_SIZE.x - 16, 14)
+	panel(Rect2(origin, RADAR_SIZE), Color("0a1210e8"), Color("608477"), 8)
+	label_at(str(radar.get("name", "TACTICAL MAP")).to_upper(), origin + Vector2(12, 22), 14)
+	var area := Rect2(origin + Vector2(12, 32), Vector2.ONE * RADAR_MAP_SIZE)
 	draw_rect(area, Color("192724"))
 	var bounds: Dictionary = radar.get("bounds", {})
 	if bounds.is_empty():
@@ -202,21 +207,56 @@ func _draw_radar() -> void:
 			var color := Color("ff625e") if enemy else Color("63baff")
 			color.a = float(blip.get("alpha", 1.0))
 			if blip.get("source", "") == "shot":
-				draw_arc(point, 6.5, 0, TAU, 20, Color(color, color.a * 0.6), 1.2, true)
-			draw_circle(point, 4.2, UI.INK)
-			draw_circle(point, 3.0, color)
+				draw_arc(point, 9.0, 0, TAU, 24, Color(color, float(blip.get("shotAlpha", 1.0)) * 0.75), 1.8, true)
+			draw_circle(point, 6.0, UI.INK)
+			draw_circle(point, 4.5, color)
 	var player: Dictionary = radar.get("player", {})
 	var point := radar_point(Vector2(player.get("x", 0), player.get("z", 0)), bounds, area)
-	point = point.clamp(area.position + Vector2.ONE * 7, area.end - Vector2.ONE * 7)
+	point = point.clamp(area.position + Vector2.ONE * PLAYER_ARROW_SIZE, area.end - Vector2.ONE * PLAYER_ARROW_SIZE)
 	var yaw: float = player.get("yaw", 0.0)
 	var forward := Vector2(sin(yaw), cos(yaw))
 	var side := Vector2(-forward.y, forward.x)
-	var arrow := PackedVector2Array([point + forward * 8, point - forward * 5 + side * 5, point - forward * 2, point - forward * 5 - side * 5])
+	var arrow := PackedVector2Array([point + forward * PLAYER_ARROW_SIZE, point - forward * 10 + side * 9, point - forward * 4, point - forward * 10 - side * 9])
 	draw_colored_polygon(arrow, UI.GREEN)
 	arrow.append(arrow[0])
-	draw_polyline(arrow, UI.INK, 1.3, true)
-	label_at("ALLY", origin + Vector2(10, 222), 9, Color("63baff"))
-	label_at("ENEMY / SHOT", origin + Vector2(61, 222), 9, Color("ff625e"))
+	draw_polyline(arrow, UI.INK, 2.4, true)
+	label_at("ALLY", origin + Vector2(12, RADAR_SIZE.y - 8), 11, Color("63baff"))
+	label_at("ENEMY / SHOT", origin + Vector2(82, RADAR_SIZE.y - 8), 11, Color("ff625e"))
+
+func _draw_enemy_indicators() -> void:
+	var center := size * 0.5
+	var limits := Rect2(Vector2(28, 84), size - Vector2(56, 164))
+	for marker in state.get("enemyIndicators", []):
+		var target: Vector2 = marker.point * size
+		if not target.is_finite():
+			continue
+		var edge: bool = marker.get("behind", false) or not limits.has_point(target)
+		var point := target
+		var color := Color("ff625e")
+		if edge:
+			var direction := (target - center).normalized()
+			if direction.is_zero_approx():
+				direction = Vector2.DOWN
+			var half := limits.size * 0.5
+			var reach := minf(half.x / maxf(absf(direction.x), 0.001), half.y / maxf(absf(direction.y), 0.001))
+			point = limits.get_center() + direction * reach
+			var side := Vector2(-direction.y, direction.x)
+			var triangle := PackedVector2Array([point + direction * 9, point - direction * 6 + side * 7, point - direction * 6 - side * 7])
+			draw_colored_polygon(triangle, color)
+			triangle.append(triangle[0])
+			draw_polyline(triangle, UI.INK, 2.0, true)
+			point -= direction * 24
+		else:
+			var diamond := PackedVector2Array([point + Vector2(0, -9), point + Vector2(8, 0), point + Vector2(0, 9), point + Vector2(-8, 0), point + Vector2(0, -9)])
+			draw_polyline(diamond, UI.INK, 5.0, true)
+			draw_polyline(diamond, color, 2.5, true)
+			draw_circle(point, 2.5, color)
+			var label_above := point - Vector2(0, 17)
+			var radar_rect := Rect2(Vector2(size.x - RADAR_SIZE.x - 16, 14), RADAR_SIZE)
+			point.y += 26 if radar_rect.grow(8).has_point(label_above) else -17
+		var caption := "%dm" % roundi(float(marker.get("distance", 0)))
+		label_at(caption, point + Vector2(1, 1), 12, UI.INK, true)
+		label_at(caption, point, 12, Color("ffb0ad"), true)
 
 static func radar_point(point: Vector2, bounds: Dictionary, area: Rect2) -> Vector2:
 	var minimum := Vector2(bounds.minX, bounds.minZ)
@@ -225,7 +265,7 @@ static func radar_point(point: Vector2, bounds: Dictionary, area: Rect2) -> Vect
 	return area.get_center() + (point - minimum - extent * 0.5) * scale_factor
 
 func _draw_streaks() -> void:
-	var y := 252.0
+	var y := RADAR_SIZE.y + 26.0
 	for entry in state.get("streaks", []):
 		var available: bool = entry.get("available", false)
 		var style := UI.box(Color("0a0c1099"), UI.GREEN if available else UI.INK, 7, 2, 0)
@@ -249,7 +289,7 @@ func _draw_streaks() -> void:
 func _draw_kills() -> void:
 	var y := 126.0
 	# Reserve the upper-right corner for the tactical map.
-	var right := size.x - 230.0
+	var right := size.x - RADAR_SIZE.x - 30.0
 	for entry in kills:
 		var killer: String = entry.get("killer", "☠")
 		var victim: String = entry.get("victim", "")

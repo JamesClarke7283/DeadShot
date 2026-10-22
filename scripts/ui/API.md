@@ -42,8 +42,11 @@ Its Back button and Escape return to pause; they do not emit `resume_match`.
 - `streaks`: `[{id,name,cost,score,available}]`
 - `minimap`: `{player:{x,z,yaw}, blips:[{x,z,enemy,source,alpha}],
   bounds:{minX,maxX,minZ,maxZ}, layout:[Rect2], name, jammed}`. North is negative Z.
-  Blue dots are teammates; red dots are enemies, and shot contacts have a ring.
-  `RadarSystem` supplies timed last-known contacts; the HUD never queries actors.
+  Blue dots are teammates; red dots track every living enemy through cover, and
+  recent shots add a ring. `RadarSystem` supplies locations; the HUD never queries actors.
+- `enemyIndicators`: `[{id, point:Vector2, behind:bool, distance:float}]`, with
+  normalized viewport coordinates. The HUD draws red diamonds or edge arrows
+  through walls, and omits them during death/killcam or hardcore.
 
 `hit_marker(headshot = false)`, `damage_from(angle)` and `add_kill(event)` animate
 feedback; kill event fields match the browser: killer, victim, killerTeam,

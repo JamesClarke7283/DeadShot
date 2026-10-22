@@ -554,6 +554,7 @@ func hud_state() -> Dictionary:
 	var direction:Vector3=player.aim_direction()
 	var result={"health":player.health,"maxHealth":player.max_health,"mag":gun.magazine,"reserve":gun.reserve,"weaponName":gun.definition.name,"blue":blue,"red":red,"mode":mode.id,"timeLeft":maxf(0,float(mode.timeLimit)-elapsed),"spread":18.0*(1-gun.ads_factor)+(10.0 if player.firing else 0.0),"ads":player.ads_factor,"reloading":gun.state=="reloading","alive":player.alive,"deathText":"RESPAWNING IN %d" % ceili(maxf(0,respawn_delay-player.death_timer)),"streakScore":streak_scores[player.actor_id],"prompt":prompt,"objective":objective_hud,"minimap":{"player":{"x":player.position.x,"z":player.position.z,"yaw":atan2(direction.x,direction.z)},"blips":blips,"bounds":map.bounds,"layout":map.radar_layout,"name":map.map_name,"jammed":false}}
 	result.minimap.jammed = jammed
+	result.enemyIndicators = radar.indicators(self)
 	if not throw_charges.is_empty():result.prompt=throw_prompt()
 	result.streaks = streaks.hud(player) if streaks else []
 	var next: Dictionary = streaks.next_streak(player) if streaks else {}
