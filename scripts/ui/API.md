@@ -80,10 +80,14 @@ float, and a save predating it migrates to the default anchor.
 ## Multiplayer and console
 
 `show_multiplayer()` opens the connection form. Signals:
-`multiplayer_connect({url,name,room,asHost})`, `multiplayer_ready(bool)`,
+`multiplayer_connect({url,name,room,asHost,team})`, `multiplayer_ready(bool)`,
+`multiplayer_team_selected(team)`, `multiplayer_copy_address(address)`,
 `multiplayer_start`, `multiplayer_settings(config)`, `multiplayer_leave`.
 The network client supplies `set_lobby_state({room,isHost,selfId,hostId,ready,
 players:[{id,name,team,ready}],settings})` or `set_network_status(text)`.
+The lobby state also accepts `shareAddresses:["IP:port"]` and `bindAddress`.
+The chosen address and COPY IP button remain available in the in-game Escape
+menu; Main writes the requested address to the system clipboard.
 
 The game handles the backquote action by calling `toggle_console()`. While
 `console_open` is true, do not process gameplay keyboard shortcuts. The

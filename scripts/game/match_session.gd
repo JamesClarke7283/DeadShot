@@ -92,7 +92,7 @@ func start(options: Dictionary, selected_class: Dictionary, settings: Dictionary
 		if network:
 			var bot_index = slot-(1 if has_player else 0)
 			actor_id = network.client.self_id if is_player else 1000000+bot_index
-			team = network.team_for_player(actor_id) if is_player else ("ffa" if mode.id=="ffa" else ("blue" if bot_index%2==0 else "red"))
+			team = network.team_for_player(actor_id) if is_player else ("ffa" if mode.id in ["ffa", "gungame"] else ("blue" if bot_index%2==0 else "red"))
 			actor.accent_index = bot_index
 		actor.setup(actor_id,team,is_player,actor_loadout,self)
 		actor.display_name = str(options.get("playerName","You")) if is_player else "Bot %d" % actor_id

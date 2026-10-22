@@ -9,6 +9,8 @@ signal settings_changed(settings: Dictionary)
 signal streak_selected(id: String)
 signal multiplayer_connect(config: Dictionary)
 signal multiplayer_ready(ready: bool)
+signal multiplayer_team_selected(team: String)
+signal multiplayer_copy_address(address: String)
 signal multiplayer_start
 signal multiplayer_settings(config: Dictionary)
 signal multiplayer_leave
@@ -24,6 +26,7 @@ const GraphicsQuality := preload("res://scripts/world/graphics_quality.gd")
 const MAPS = preload("res://scripts/world/map_catalog.gd").ENTRIES
 const MODES := [{"id": "tdm", "name": "TEAM DEATHMATCH"}, {"id": "ffa", "name": "FREE-FOR-ALL"}, {"id": "dom", "name": "DOMINATION"}, {"id": "ctf", "name": "CAPTURE THE FLAG"}, {"id": "gungame", "name": "GUN GAME"}]
 const DIFFICULTIES := [{"id": "recruit", "name": "Recruit"}, {"id": "regular", "name": "Regular"}, {"id": "veteran", "name": "Veteran"}]
+const TEAMS := [{"id": "auto", "name": "Auto assign"}, {"id": "blue", "name": "Blue team"}, {"id": "red", "name": "Red team"}]
 var store := Store.new()
 var screen := ""
 var root: Control
@@ -41,7 +44,8 @@ var preview_camera: Camera3D
 var preview_time := 0.0
 var stat_bars: Dictionary = {}
 var network_status := ""
-var network_config := {"url": "ws://127.0.0.1:8090/ws", "name": "Player", "room": ""}
+var network_config := {"url": "ws://0.0.0.0:8090/ws", "name": "Player", "room": "", "team": "auto"}
+var copy_address := ""
 var lobby_state: Dictionary = {}
 var settings_return := "main"
 var console_panel: PanelContainer
@@ -569,8 +573,14 @@ func show_match(hardcore: bool = false) -> void:
 
 func show_pause() -> void:
 	_switch("pause", true)
-	var panel := _center_panel(340, 28)
+	var networked: bool = not lobby_state.get("shareAddresses", []).is_empty()
+	var panel := _center_panel(500 if networked else 340, 28)
 	_label(panel, "PAUSED", 34, UI.GREEN, 900).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	if networked:
+		_label(panel, "Room " + str(lobby_state.get("room", "")), 14, UI.GREEN)
+		_render_server_address(panel)
+		if not network_status.is_empty():
+			_label(panel, network_status, 12, UI.GREEN).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_button(panel, "RESUME", func(): resume_match.emit())
 	_button(panel, "CONTROLS", show_controls)
 	_button(panel, "OPTIONS", func(): show_options("pause"))
@@ -1092,6 +1102,7 @@ func hide_replay() -> void:
 
 func show_multiplayer() -> void:
 	lobby_state = {}
+	copy_address = ""
 	network_status = ""
 	_render_multiplayer()
 
@@ -1100,9 +1111,11 @@ func _render_multiplayer() -> void:
 	var panel := _center_panel(520, 32)
 	_label(panel, "MULTIPLAYER", 30, UI.GREEN, 900)
 	if lobby_state.is_empty():
-		_field(panel, "Server URL", network_config.url, func(value): network_config.url = value.strip_edges())
+		_field(panel, "Server IP:port or URL", network_config.url, func(value): network_config.url = value.strip_edges())
 		_field(panel, "Your Name", network_config.name, func(value): network_config.name = value.left(24)).max_length = 24
 		_field(panel, "Room Code (blank = new room)", network_config.room, func(value): network_config.room = value.strip_edges().to_upper())
+		_labeled_option(panel, "Your Team", TEAMS, network_config.team, func(value): network_config.team = value).name = "JoinTeam"
+		_label(panel, "Hosting listens on 0.0.0.0 using the port above.", 12, UI.MUTED)
 		var connect_buttons := _hbox(panel, 12)
 		_button(connect_buttons, "HOST GAME", func(): _connect_multiplayer(true)).size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		_button(connect_buttons, "JOIN GAME", func(): _connect_multiplayer(false)).size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1112,15 +1125,28 @@ func _render_multiplayer() -> void:
 	else:
 		var host: bool = lobby_state.get("isHost", false)
 		_label(panel, "Room %s  •  %s" % [lobby_state.get("room", network_config.room), "You are the host" if host else "Waiting for host"], 14, UI.GREEN)
+		_render_server_address(panel)
+		if host and not str(lobby_state.get("bindAddress", "")).is_empty():
+			_label(panel, "Listening on " + str(lobby_state.bindAddress), 12, UI.MUTED)
 		var roster := _card(panel, "Players")
+		var own_team := str(network_config.team)
 		for player in lobby_state.get("players", []):
 			var row := _hbox(roster)
 			var name_text: String = player.get("name", "Player")
-			if player.get("id", -1) == lobby_state.get("selfId", -2): name_text += " (you)"
+			if player.get("id", -1) == lobby_state.get("selfId", -2):
+				name_text += " (you)"
+				own_team = str(player.get("teamChoice", player.get("team", network_config.team)))
 			if player.get("id", -1) == lobby_state.get("hostId", -2): name_text += " ★"
+			name_text += " · " + str(player.get("team", "ffa")).to_upper()
 			_label(row, name_text, 13, Hud.team_color(player.get("team", "ffa"))).size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			_label(row, "READY" if player.get("ready", false) else "…", 13, UI.GREEN if player.get("ready", false) else UI.MUTED)
 		var settings: Dictionary = lobby_state.get("settings", Store.default_match_config())
+		if settings.mode not in ["ffa", "gungame"]:
+			_labeled_option(panel, "Your Team", TEAMS, own_team, func(value):
+				network_config.team = value
+				multiplayer_team_selected.emit(value)).name = "LobbyTeam"
+		else:
+			_label(panel, "Free-for-all: everyone is an opponent.", 12, UI.MUTED)
 		if host:
 			_labeled_option(panel, "Map", MAPS, settings.mapId, func(value): _lobby_setting("mapId", value))
 			_labeled_option(panel, "Mode", MODES, settings.mode, func(value): _lobby_setting("mode", value))
@@ -1144,6 +1170,27 @@ func _render_multiplayer() -> void:
 			show_main_menu(), true)
 	if not network_status.is_empty():
 		_label(panel, network_status, 13, Color("ff9b6b")).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+func _render_server_address(parent: Node) -> void:
+	var addresses: Array = lobby_state.get("shareAddresses", [])
+	if not addresses.is_empty():
+		if not addresses.has(copy_address):
+			copy_address = str(addresses[0])
+		var share := _hbox(parent, 10)
+		if addresses.size() > 1:
+			var choices: Array = []
+			for address in addresses:
+				choices.append({"id": address, "name": address})
+			_option(share, choices, copy_address, func(value): copy_address = value)
+		else:
+			var address_field := LineEdit.new()
+			address_field.text = copy_address
+			address_field.editable = false
+			address_field.add_theme_color_override("font_uneditable_color", UI.WHITE)
+			address_field.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			share.add_child(address_field)
+		_button(share, "COPY IP", func(): multiplayer_copy_address.emit(copy_address)).name = "CopyIP"
+		_label(parent, "Share this address and room code with the other players.", 12, UI.MUTED)
 
 func _connect_multiplayer(as_host: bool) -> void:
 	if network_config.room.is_empty():
@@ -1174,6 +1221,8 @@ func set_network_status(text: String) -> void:
 	network_status = text
 	if screen == "multiplayer":
 		_render_multiplayer()
+	elif screen == "pause":
+		show_pause()
 
 func _build_console() -> void:
 	console_panel = PanelContainer.new()

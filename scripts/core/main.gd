@@ -2,6 +2,7 @@ extends Node
 const Session = preload("res://scripts/game/match_session.gd")
 const QUALITY = preload("res://scripts/world/graphics_quality.gd")
 const MATERIALS = preload("res://scripts/world/map_material.gd")
+const Address = preload("res://scripts/net/network_address.gd")
 var ui
 var game_match
 var audio
@@ -35,6 +36,9 @@ func _ready() -> void:
 	ui.multiplayer_connect.connect(_connect_multiplayer)
 	ui.multiplayer_ready.connect(func(ready):
 		if is_instance_valid(net):net.set_ready(ready))
+	ui.multiplayer_team_selected.connect(func(team):
+		if is_instance_valid(net):net.set_team(team))
+	ui.multiplayer_copy_address.connect(_copy_multiplayer_address)
 	ui.multiplayer_settings.connect(func(settings):
 		if is_instance_valid(net):net.set_settings(settings))
 	ui.multiplayer_start.connect(func():
@@ -100,25 +104,37 @@ func _connect_multiplayer(config: Dictionary) -> void:
 	state="multiplayer"
 	# A local host can run the same room relay inside Godot; remote URLs use
 	# their existing server (including the original browser/Deno relay).
-	var url := str(config.get("url","ws://127.0.0.1:8090/ws"))
-	var authority := url.get_slice("://",1).get_slice("/",0)
-	var host := authority.get_slice(":",0)
-	if not OS.has_feature("web") and config.get("asHost",false) and url.begins_with("ws://") and host in ["localhost","127.0.0.1"]:
-		var port := int(authority.get_slice(":",1)) if ":" in authority else 80
+	var url := Address.normalize_url(str(config.get("url", "ws://0.0.0.0:8090/ws")))
+	var host := Address.host(url)
+	var port := Address.port(url)
+	if port < 1 or not (url.begins_with("ws://") or url.begins_with("wss://")):
+		ui.set_network_status("Enter a valid server IP:port or ws:// URL.")
+		return
+	var local_host: bool = not OS.has_feature("web") and Address.is_local(host)
+	if local_host and config.get("asHost",false) and url.begins_with("ws://"):
 		relay=preload("res://scripts/server/multiplayer_relay.gd").new()
 		add_child(relay)
-		var error: Error=relay.start(port)
+		var error: Error=relay.start(port, "0.0.0.0")
 		if error!=OK:
 			relay.free()
 			relay=null
 			# The URL may already be served by another game instance.
+	network_config.url = url
+	network_config.shareAddresses = Address.share_endpoints(port, IP.get_local_interfaces()) if local_host else [Address.endpoint(url)]
 	net=preload("res://scripts/net/net_client.gd").new()
 	add_child(net)
 	net.lobby.connect(_network_lobby)
 	net.started.connect(_network_started)
 	net.error.connect(_network_error)
 	net.closed.connect(_network_closed)
-	net.connect_room(url,str(config.get("room","")),str(config.get("name","Player")))
+	net.connect_room(Address.connection_url(url), str(config.get("room","")), str(config.get("name","Player")), str(config.get("team", "auto")))
+
+func _copy_multiplayer_address(address: String) -> void:
+	if DisplayServer.has_feature(DisplayServer.FEATURE_CLIPBOARD):
+		DisplayServer.clipboard_set(address)
+		ui.set_network_status("Copied IP: " + address)
+	else:
+		ui.set_network_status("Copy this address: " + address)
 
 func _network_lobby(players: Array, host_id: int, settings: Dictionary) -> void:
 	if state!="multiplayer" or not is_instance_valid(net):
@@ -128,7 +144,8 @@ func _network_lobby(players: Array, host_id: int, settings: Dictionary) -> void:
 		if int(person.id)==net.self_id:
 			ready=bool(person.ready)
 	ui.set_lobby_state({"room":network_config.get("room",""),"isHost":net.is_host(),
-		"selfId":net.self_id,"hostId":host_id,"ready":ready,"players":players,"settings":settings})
+		"selfId":net.self_id,"hostId":host_id,"ready":ready,"players":players,"settings":settings,
+		"shareAddresses":network_config.get("shareAddresses", []),"bindAddress":relay.bind_address if is_instance_valid(relay) else ""})
 
 func _network_started(settings: Dictionary, _seed: int, _players: Array) -> void:
 	var options := settings.duplicate(true)
@@ -158,6 +175,9 @@ func _leave_multiplayer() -> void:
 		relay.stop()
 		relay.queue_free()
 		relay=null
+	if is_instance_valid(ui):
+		ui.lobby_state = {}
+		ui.copy_address = ""
 
 func _physics_process(dt: float) -> void:
 	# A detail change must settle whether or not a match is running, so the

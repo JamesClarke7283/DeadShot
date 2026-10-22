@@ -22,6 +22,7 @@ var url := ""
 var socket: WebSocketPeer
 var _room := ""
 var _player_name := "Player"
+var _preferred_team := "auto"
 var _join_sent := false
 var _connect_started := 0.0
 var _intentional_close := false
@@ -35,12 +36,13 @@ func _ready() -> void:
 func is_host() -> bool:
 	return self_id >= 0 and self_id == host_id
 
-func connect_room(server_url: String, room: String, player_name: String) -> Error:
+func connect_room(server_url: String, room: String, player_name: String, preferred_team: String = "auto") -> Error:
 	if socket != null:
 		socket.close(1000, "Reconnecting")
 	url = server_url
 	_room = room
 	_player_name = player_name
+	_preferred_team = preferred_team if preferred_team in ["auto", "blue", "red"] else "auto"
 	self_id = -1
 	host_id = -1
 	players.clear()
@@ -65,7 +67,7 @@ func _process(_delta: float) -> void:
 	if state == WebSocketPeer.STATE_OPEN:
 		if not _join_sent:
 			_join_sent = true
-			_send({"t": "join", "room": _room, "name": _player_name})
+			_send({"t": "join", "room": _room, "name": _player_name, "team": _preferred_team})
 		while socket != null and socket.get_available_packet_count() > 0:
 			var packet := socket.get_packet()
 			if socket.was_string_packet():
@@ -114,6 +116,11 @@ func _send(message: Dictionary) -> void:
 
 func set_ready(ready: bool) -> void:
 	_send({"t": "ready", "ready": ready})
+
+func set_team(team: String) -> void:
+	if team in ["auto", "blue", "red"]:
+		_preferred_team = team
+		_send({"t": "team", "team": team})
 
 func set_settings(value: Dictionary) -> void:
 	_send({"t": "settings", "settings": value})

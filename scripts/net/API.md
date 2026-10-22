@@ -1,7 +1,7 @@
 # Native multiplayer transport
 
 `net_client.gd` extends Node, uses WebSocketPeer and accepts the source relay
-protocol. Add it to the scene before `connect_room(url, room, name)`, which
+protocol. Add it to the scene before `connect_room(url, room, name, team = "auto")`, which
 returns a Godot Error. `connected` and `is_host()` expose connection state;
 `self_id`, `host_id`, `players` and `settings` track lobby state.
 
@@ -18,7 +18,7 @@ Signals match the original callback arguments:
 - `peer_left(id)`, `closed()`, `error(message)`
 
 Optional missing killer IDs use `-1`; missing weapon IDs use an empty string.
-Senders are `set_ready(bool)`, `set_settings(settings)`, `start_match()`,
+Senders are `set_ready(bool)`, `set_team("auto" | "blue" | "red")`, `set_settings(settings)`, `start_match()`,
 `send_state(state)`, `send_bots(bots)`, `send_hit(target,damage,headshot,weapon_id)`,
 `send_death(victim,killer,weapon_id,headshot)`, `send_event(kind,data)` and
 `disconnect_room()`. Disconnect polls the WebSocket closing handshake.
@@ -31,12 +31,22 @@ markers follow the actor's current position independently. Peers without these
 fields fall back to `anim: "shoot"`.
 
 `scripts/server/multiplayer_relay.gd` extends Node. Add it to a scene and call
-`start(port = 8090, bind_address = '*') -> Error`. Any WebSocket HTTP path is
+`start(port = 8090, listen_address = "0.0.0.0") -> Error`. Any WebSocket HTTP path is
 accepted, including the original `/ws`. `stop()`, `running`, `room_count` and
-`port` are available. Rooms, host transfer, alternating teams, ready flags,
+`port` and `bind_address` are available. Rooms, host transfer, team choices, ready flags,
 sanitized settings, random match seeds and client-authoritative traffic preserve
 the source server behavior. Only hosts may update settings, start games or send
 bot states. Match traffic never leaves its room and is not echoed to its sender.
+
+Join messages optionally carry `team`; later `{"t":"team","team":"red"}`
+messages update the sender's choice before match start and clear their ready
+flag. Roster entries include `teamChoice` as well as effective `team`. Auto
+assign balances new players while preserving existing assignments. FFA and
+Gun Game expose `team: "ffa"` without discarding the stored choice.
+
+`network_address.gd` normalizes pasted `IP:port` values, dials loopback when the
+host form contains a wildcard, and lists shareable interface addresses with LAN
+interfaces first. Wildcards are never offered as addresses to copy.
 
 Run a dedicated server without a browser or Deno:
 

@@ -269,6 +269,18 @@ Connect to `ws://127.0.0.1:8090/ws` on the same machine, or replace the hostname
 with the relay machine's reachable LAN address. The first player in a new room
 becomes host; when the host leaves, the next player becomes host.
 
+Native hosting binds to **0.0.0.0** by default. **COPY IP** in the lobby and the
+in-game **Escape menu** copies the selected LAN address and port (for example,
+`192.168.1.20:8090`); the room code is displayed beside the connection details.
+If several network interfaces are available, select the address to share. The
+join field accepts the copied `IP:port` directly as well as full WebSocket URLs.
+
+Choose **Blue team**, **Red team**, or **Auto assign** before joining, or change
+your choice in the lobby. Changing teams clears your ready status. Team choices
+survive other players joining/leaving and switches between team and free-for-all
+modes; free-for-all and Gun Game treat every player as an opponent. Teams lock
+when the match starts.
+
 ## Export
 
 Install export templates matching the editor version. Linux and Windows presets
