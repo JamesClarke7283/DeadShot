@@ -232,6 +232,82 @@ to Godot's `user://deadshot.save.json`.
 Death refills every carried weapon and resets scorestreak progress for the next
 life. Deployed streaks finish normally, and match scoreboard totals are retained.
 
+### Spawns
+
+Nobody appears in an enemy's view or gets spawn-killed. Every spawn is chosen
+out of each living enemy's line of sight and, against a human player, on the
+far side of the map: within the farthest 40% of the distance any spawn reaches
+from that player (and never under 30 m), wherever the player stands. Sight uses
+the solid collision boxes bots use to acquire targets. Against a person it is
+tested to the arriving actor's head and chest from their eye, from a standing
+eye and from a 1.2 m peek to either side. Against a bot it is the bot's own
+eye-to-eye targeting line, inside its difficulty's view range.
+
+Teams spawn on their own pads while those are safe. When the player pushes into
+an enemy spawn area, enemies spawn on the opposite side of the map instead, on
+another team's pads or on open ground taken from the navigation graph. Capture
+the Flag keeps each team on its own half, so a flipped spawn never lands on the
+enemy flag. `MatchSession.choose_spawn` documents the tiers. `tests/spawn_safety.gd`
+checks every map in team, free-for-all and CTF play.
+
+### Aiming and scopes
+
+Hold **right mouse** (LT, or **ADS** on touch) to aim through the weapon's
+sight. Every sight now finishes on the line of fire: the aim position is solved
+from the optic's own lens rather than one shared offset, which used to leave the
+sight under the crosshair. The solid optic housings are cut open along the bore
+(a view-space cone in the weapon's shader), so each sight is a see-through tube.
+
+| Sight | Weapons | Magnification | View at full aim |
+| --- | --- | --- | --- |
+| Reflex (built in) | assault rifles, SMGs, LMGs | 1.35× | window with a red dot |
+| Red Dot / Holographic | any, fitted | 1.5× / 1.4× | window with a dot / ring |
+| ACOG | any, fitted | 4× | full scope, lit chevron and drop marks |
+| Marksman scope (built in) | MK14 | 3× | full scope, fine crosshair |
+| Sniper scope (built in) | Kar98, Barrett .50 | 6× | full scope, duplex with mil-dots |
+| Iron sights | shotguns, pistols, RPG-7 | 1.15× | sights at the centre |
+
+Magnified scopes save most of their zoom for the end of the raise. The eyepiece
+picture then takes over the screen and the weapon model is hidden behind it. A
+scope comes off the eye while reloading. Look sensitivity divides by the
+magnification, for mouse, stick and touch, and replays keep the settings FOV. A
+fitted optic hides the sight built into the weapon model. Profiles live in
+`scripts/game/sights.gd` and the eyepiece and reticles in `scripts/ui/sight_overlay.gd`.
+`tests/scope_sights.gd` covers them.
+
+### Armory
+
+**CREATE-A-CLASS** opens the **Armory**, an interactive loadout gallery for all
+18 weapons. Primary and secondary weapons have transparent model thumbnails and
+a large animated 3D preview. Attachment tabs expose every optic, barrel,
+magazine, stock, grip and weapon perk as an icon card; all nine class perks are
+visible together. Hovering or keyboard-focusing a card explains its effect and
+stat modifiers, while clicking equips it and saves immediately. Camo swatches
+update the preview, and the **Field Kit** tab provides the same card interface
+for tacticals, lethals, field upgrades and scorestreaks.
+
+Armory code lives in `scripts/ui/armory.gd` and its cached vector pictograms in
+`scripts/ui/armory_icons.gd`. Rebuild the transparent weapon thumbnails from the
+actual models with:
+
+```sh
+python tools/run_check.py --graphical --script tools/export_armory_thumbnails.gd
+```
+
+### Runtime efficiency
+
+The scoreboard is built only while visible and unchanged rows reuse their
+controls. Replay actor snapshots are constructed only at the recorder's 30 Hz
+capture points, with a small timing tolerance that prevents dropped killcam
+frames. Static HUDs skip redundant redraws, idle screen effects skip shader
+writes, and repeated music-duck requests reuse the active transition. Bot target
+scans and network snapshots use the supplied simulation time, preserving their
+cadence when the frame rate changes. `tests/runtime_optimizations.gd` covers
+these behaviors.
+
+The vector wordmark is `assets/branding/deadshot_logo.svg`; `icon.svg` is the
+matching application icon. Both scale without external font dependencies.
+
 ## Controls
 
 | Action | Keyboard/mouse |
@@ -330,6 +406,9 @@ python tools/run_check.py --script scripts/ui/verify_ui.gd
 python tools/run_check.py --script tests/input_gamepad_test.gd
 python tools/run_check.py --script tests/input_console_test.gd
 python tools/run_check.py --script tests/screen_effects_test.gd
+python tools/run_check.py --script tests/runtime_optimizations.gd
+python tools/run_check.py --script tests/spawn_safety.gd
+python tools/run_check.py --script tests/scope_sights.gd
 python tools/run_check.py --script tests/graphics_settings_test.gd
 python tools/run_check.py --graphical --script tests/graphics_quality_test.gd
 python tools/run_check.py --script tests/detail_slider_test.gd

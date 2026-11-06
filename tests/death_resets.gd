@@ -8,6 +8,7 @@ class PassiveBrain extends RefCounted:
 	func tick(_actor,_dt,_match):pass
 
 class NetworkOwnership extends RefCounted:
+	var is_host:=true
 	var remotes:Dictionary={}
 	var sent_deaths:=0
 	func owns(actor)->bool:return not remotes.has(actor.actor_id)

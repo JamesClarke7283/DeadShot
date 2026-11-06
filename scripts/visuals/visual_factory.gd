@@ -181,6 +181,14 @@ static func create_weapon(category_or_id: String = "assault", camo: Color = Colo
 		var attachment_id: String = "attachment_" + category + "_" + str(id)
 		if catalog.models.has(attachment_id):
 			gun.add_child(create_model(attachment_id))
+	# A fitted optic replaces the sight the weapon is built with. Both mount on
+	# the same rail, so keeping the built-in one left it buried inside the new
+	# housing, fighting it for depth and blocking the view through it.
+	if slots.has("optic") and catalog.models.has("attachment_" + category + "_" + str(slots.optic)):
+		var parts: Dictionary = root.get_meta("visual_parts", {})
+		for key: String in parts:
+			if key.ends_with("__optic") or key.ends_with("__lens") or key.ends_with("__reticle"):
+				parts[key].visible = false
 	set_camo(root, camo)
 	# Factory origin is neutral; the owning camera applies HIP_POSITION/ADS_POSITION.
 	root.position = Vector3.ZERO

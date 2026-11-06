@@ -44,7 +44,9 @@ func poll_state(delta: float, player: Node, axes: Array, buttons: Dictionary, pr
 	_apply("left", left_x < -0.3)
 	_apply("right", left_x > 0.3)
 	if is_instance_valid(player) and (right_x != 0 or right_y != 0):
-		player.apply_recoil(-right_y * 2.8 * delta, -right_x * 2.8 * delta)
+		# Slower turning through a magnified sight, as with the mouse.
+		var scale: float = player.look_scale() if player.has_method("look_scale") else 1.0
+		player.apply_recoil(-right_y * 2.8 * delta * scale, -right_x * 2.8 * delta * scale)
 	_apply("ads", axes.size() > 4 and float(axes[4]) > 0.5)
 	_apply("fire", axes.size() > 5 and float(axes[5]) > 0.5)
 	for button in BUTTON_ACTIONS:

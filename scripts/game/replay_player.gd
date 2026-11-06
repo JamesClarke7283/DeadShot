@@ -32,7 +32,8 @@ func setup(data:Dictionary,replay_kind:String,source_camera:Camera3D=null)->void
 		# and its last pose when neither focused actor is in the window.
 		camera.global_transform=source_camera.global_transform
 		camera.projection=source_camera.projection
-		camera.fov=source_camera.fov
+		# The settings FOV, not an aimed-in zoom the live camera may still hold.
+		camera.fov=float(source_camera.get_meta("base_fov",source_camera.fov))
 		camera.near=source_camera.near
 		camera.far=source_camera.far
 		camera.keep_aspect=source_camera.keep_aspect

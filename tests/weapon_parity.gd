@@ -18,6 +18,7 @@ class TestActor extends RefCounted:
 	func aim_direction()->Vector3:return direction
 
 class TestWorld extends RefCounted:
+	var ui_time:=0.0
 	var pellets:=0
 	var rockets:=0
 	var reloads:=0
@@ -94,9 +95,19 @@ func run()->void:
 		var knife=Visuals.part(player.viewmodel,"knife")
 		var label:String="Viewmodel transition %d"%index
 		check(is_equal_approx(player.ads_factor,float(frame.ads)),label+" ADS")
-		check(player.viewmodel.position.is_equal_approx(vector(frame.root)),label+" root position")
-		check(gun.position.is_equal_approx(vector(frame.gun)),label+" gun position")
-		check(gun.rotation.is_equal_approx(vector(frame.gunRotation)),label+" gun rotation")
+		# The source raised every weapon to one shared ADS offset. Each sight now
+		# ends on the line of fire at its own eye relief, so the transition keeps
+		# the source curve but ends at the weapon's solved ADS position.
+		var root_position:Vector3=vector(frame.root)+(player.ads_position-Visuals.ADS_POSITION)*float(frame.ads)
+		check(player.viewmodel.position.is_equal_approx(root_position),label+" root position")
+		# The source pose is reload dip plus shot kick: y=-0.12d+0.06k, pitch=0.5d+0.12k.
+		# Aimed, the kick share shrinks so the aligned sight holds the aim point.
+		var source_gun:Vector3=vector(frame.gun)
+		var source_pitch:float=vector(frame.gunRotation).x
+		var dip:=(source_pitch-2.0*source_gun.y)/0.74
+		var kicked:=(source_gun.y+0.12*dip)/0.06*lerpf(1.0,Actor.ADS_KICK,float(frame.ads))
+		check(gun.position.is_equal_approx(Vector3(0,-0.12*dip+0.06*kicked,0)),label+" gun position")
+		check(gun.rotation.is_equal_approx(Vector3(0.5*dip+0.12*kicked,0,0)),label+" gun rotation")
 		check(gun.visible==frame.gunVisible,label+" gun visibility")
 		check(knife.position.is_equal_approx(vector(frame.knife)),label+" knife position")
 		check(knife.rotation.is_equal_approx(vector(frame.knifeRotation)),label+" knife rotation")

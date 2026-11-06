@@ -314,6 +314,11 @@ static func shader_code(level: String, flags: int) -> String:
 		code = code.replace("// TRANSPARENT_ALPHA", "ALPHA = alpha_value;")
 	else:
 		code = code.replace("// TRANSPARENT_ALPHA", "")
+	# 32: the player's viewmodel. `sight_window` is a unit view-space direction
+	# and the cosine of the cone's half-angle; a cosine above one disables it.
+	if flags & 32:
+		code = code.replace("// SIGHT_WINDOW_UNIFORM", "uniform vec4 sight_window = vec4(0.0, 0.0, -1.0, 2.0);")
+		code = code.replace("// SIGHT_WINDOW_DISCARD", "if (dot(normalize(VERTEX), sight_window.xyz) > sight_window.w) {\n\t\tdiscard;\n\t}")
 	if not bool(settings.anisotropic):
 		code = code.replace("filter_linear_mipmap_anisotropic", "filter_linear_mipmap")
 	# Enabled features keep their markers, which are comments the compiler ignores

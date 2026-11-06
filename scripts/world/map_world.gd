@@ -10,6 +10,8 @@ const MAP_IDS = preload("res://scripts/world/map_catalog.gd").IDS
 var map_id: String = ""
 var map_name: String = ""
 var spawn_points: Array[Dictionary] = []
+## Cached result of `spawn_pool()`; cleared with the map.
+var spawn_candidates: Array[Dictionary] = []
 var nav_points: Array[Dictionary] = []
 var collision_boxes: Array[AABB] = []
 var radar_layout: Array[Rect2] = []
@@ -139,6 +141,7 @@ func clear_map() -> void:
 		remove_child(child)
 		child.queue_free()
 	spawn_points.clear()
+	spawn_candidates.clear()
 	nav_points.clear()
 	collision_boxes.clear()
 	radar_layout.clear()
@@ -160,6 +163,45 @@ func height_at(x: float, z: float) -> float:
 		return 0.0
 	var h := sin(x * 0.05) * cos(z * 0.045) + 0.5 * sin(x * 0.11 + 1.3) * cos(z * 0.1 - 0.7) + 0.25 * sin(x * 0.21 - 0.4) * cos(z * 0.19 + 0.9)
 	return h / 1.75 * float(terrain_data.get("amplitude", 3.0))
+
+## Grid used to thin navigation points into spawn candidates, in metres.
+const SPAWN_CELL := 7.0
+
+## Every place an actor may appear: the authored pads, merged where the team and
+## free-for-all sets share a position, then ground-level navigation points thinned
+## to one per grid cell. Pads keep their authored yaw and the teams that own
+## them; waypoints face the arena centre and belong to nobody. The waypoints let a
+## spawn stay out of sight and on the far side of the map even when every pad is
+## being watched.
+func spawn_pool() -> Array[Dictionary]:
+	if not spawn_candidates.is_empty():
+		return spawn_candidates
+	var pads: Dictionary = {}
+	for point: Dictionary in spawn_points:
+		var at: Vector3 = point.position
+		var key := Vector2i(roundi(at.x * 2.0), roundi(at.z * 2.0))
+		if not pads.has(key):
+			pads[key] = {"position": at, "yaw": float(point.yaw), "teams": [], "pad": true}
+			spawn_candidates.append(pads[key])
+		pads[key].teams.append(str(point.team))
+	var center := Vector3((float(bounds.get("minX", 0)) + float(bounds.get("maxX", 0))) * 0.5, 0.0, (float(bounds.get("minZ", 0)) + float(bounds.get("maxZ", 0))) * 0.5)
+	var cells: Dictionary = {}
+	for pad: Dictionary in spawn_candidates:
+		cells[Vector2i(floori(pad.position.x / SPAWN_CELL), floori(pad.position.z / SPAWN_CELL))] = true
+	for waypoint: Dictionary in nav_points:
+		var at: Vector3 = waypoint.position
+		var ground := height_at(at.x, at.z)
+		# Only open ground: raised walkways and roof points are not spawn spots.
+		if absf(at.y - ground) > 0.5 or not point_free(at.x, at.z, 0.6):
+			continue
+		if not bounds.is_empty() and (at.x < float(bounds.minX) + 2.0 or at.x > float(bounds.maxX) - 2.0 or at.z < float(bounds.minZ) + 2.0 or at.z > float(bounds.maxZ) - 2.0):
+			continue
+		var cell := Vector2i(floori(at.x / SPAWN_CELL), floori(at.z / SPAWN_CELL))
+		if cells.has(cell):
+			continue
+		cells[cell] = true
+		spawn_candidates.append({"position": Vector3(at.x, ground, at.z), "yaw": atan2(center.x - at.x, center.z - at.z), "teams": [], "pad": false})
+	return spawn_candidates
 
 func spawns_for_team(team: String) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
@@ -210,6 +252,40 @@ func resolve_position(pos: Vector3, radius: float, height: float) -> Vector3:
 				else: pos.z = box.end.z + radius
 	pos.y = maxf(pos.y, height_at(pos.x, pos.z))
 	return pos
+
+## True when a solid collision box interrupts the segment between two points.
+## This is the occlusion bots use to acquire targets (`raycast_boxes`), reduced
+## to a yes/no answer: it returns at the first blocking box instead of searching
+## for the nearest, and rejects boxes outside the segment's bounds before the
+## slab test, which keeps the many sightlines a spawn decision needs cheap.
+func sightline_blocked(from: Vector3, to: Vector3) -> bool:
+	var delta := to - from
+	var low := Vector3(minf(from.x, to.x), minf(from.y, to.y), minf(from.z, to.z))
+	var high := Vector3(maxf(from.x, to.x), maxf(from.y, to.y), maxf(from.z, to.z))
+	for box: AABB in collision_boxes:
+		var box_end := box.end
+		if box_end.x < low.x or box.position.x > high.x or box_end.z < low.z or box.position.z > high.z or box_end.y < low.y or box.position.y > high.y:
+			continue
+		var near_t := 0.0
+		var far_t := 1.0
+		var missed := false
+		for axis in 3:
+			var step: float = delta[axis]
+			if absf(step) < 0.00000001:
+				if from[axis] < box.position[axis] or from[axis] > box_end[axis]:
+					missed = true
+					break
+				continue
+			var first: float = (box.position[axis] - from[axis]) / step
+			var second: float = (box_end[axis] - from[axis]) / step
+			near_t = maxf(near_t, minf(first, second))
+			far_t = minf(far_t, maxf(first, second))
+			if near_t > far_t:
+				missed = true
+				break
+		if not missed:
+			return true
+	return false
 
 func raycast_boxes(origin: Vector3, direction: Vector3, max_distance: float) -> float:
 	var best := max_distance + 1.0

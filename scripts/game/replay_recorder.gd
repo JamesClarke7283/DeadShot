@@ -13,8 +13,13 @@ func latest()->float:
 func clear()->void:
 	frames.clear()
 
+func should_record(time:float)->bool:
+	# Nominal 30/60/120 Hz steps can land a few ulps below the exact interval.
+	# Without this tolerance a 30 Hz recorder may incorrectly skip every other frame.
+	return frames.is_empty() or time-float(frames[-1].t)>=1.0/hz-0.000001
+
 func record(time:float,actors:Array)->void:
-	if not frames.is_empty() and time-float(frames[-1].t)<1.0/hz:return
+	if not should_record(time):return
 	frames.append({"t":time,"actors":actors.duplicate(true)})
 	while frames.size()>1 and frames[0].t<time-duration:frames.pop_front()
 

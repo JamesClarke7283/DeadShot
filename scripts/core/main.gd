@@ -46,7 +46,8 @@ func _ready() -> void:
 	ui.multiplayer_leave.connect(_leave_multiplayer)
 	ui.touch_look.connect(func(delta):
 		if state=="playing" and not paused and game_match and game_match.player and not is_instance_valid(replay):
-			game_match.player.apply_recoil(-delta.y*0.004,-delta.x*0.004))
+			var scale: float = game_match.player.look_scale()
+			game_match.player.apply_recoil(-delta.y*0.004*scale,-delta.x*0.004*scale))
 	if ResourceLoader.exists("res://scripts/audio/audio_manager.gd"):
 		audio=load("res://scripts/audio/audio_manager.gd").new()
 		add_child(audio)
@@ -216,7 +217,10 @@ func _physics_process(dt: float) -> void:
 	ui.update_hud(game_match.hud_state())
 	_update_streak_ui()
 	var show_scores=Input.is_action_pressed("scoreboard") and not bool(last_config.get("hardcore",false))
-	ui.show_scoreboard(show_scores,game_match.score_rows(),game_match.team_kills("blue"),game_match.team_kills("red"),game_match.mode.id)
+	if show_scores:
+		ui.show_scoreboard(true,game_match.score_rows(),game_match.team_kills("blue"),game_match.team_kills("red"),game_match.mode.id)
+	elif ui.scoreboard.visible:
+		ui.show_scoreboard(false)
 	if audio and game_match.player:audio.set_music_duck(0.7 if game_match.player.alive and game_match.player.health<35 else 0)
 
 func _activate_streak(id: String) -> void:

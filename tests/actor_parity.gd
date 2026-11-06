@@ -24,6 +24,7 @@ class TestMatch extends RefCounted:
 	var actors: Array = []
 	var navigator := CaptureNavigator.new()
 	var goal: Dictionary = {}
+	var ui_time := 0.0
 	var shots := 0
 	func objective_goal(_actor) -> Dictionary: return goal
 	func shot_fired(_actor) -> void: shots += 1
@@ -106,6 +107,11 @@ func _run() -> void:
 	root.add_child(bot)
 	game_match.goal = {"x": 0.0, "z": 0.0, "radius": 6.0, "kind": "defend"}
 	var brain = BRAIN.new("regular")
+	brain.target = actor
+	brain.select_timer = 0.2
+	brain._select_target(bot, game_match, 1.0 / 30.0)
+	_expect(is_equal_approx(brain.select_timer, 0.2 - 1.0 / 30.0), "Bot target cadence uses the supplied simulation dt")
+	brain.target = null
 	seed(4097)
 	var greatest_radius := 0.0
 	for repetition in range(60):

@@ -71,11 +71,15 @@ func add_remote(id: int, team: String, player_name: String):
 func tick(dt: float) -> void:
 	match_timer -= dt
 	if is_host and match_timer <= 0.0:
+		var remainder := match_timer
 		publish_match_state()
+		# Keep sub-interval overshoot so 20 Hz/4 Hz snapshots retain their cadence.
+		# Discard deeper backlog and rearm fully rather than sending again next tick.
+		match_timer = 0.25 + remainder if remainder > -0.25 else 0.25
 	send_timer -= dt
 	if send_timer > 0:
 		return
-	send_timer = 0.05
+	send_timer = 0.05 + send_timer if send_timer > -0.05 else 0.05
 	if game_match.player:
 		client.send_state(snapshot(game_match.player))
 	if is_host:

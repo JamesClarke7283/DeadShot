@@ -13,7 +13,24 @@ const Actor = preload("res://scripts/game/combatant.gd")
 const Data = preload("res://scripts/core/game_data.gd")
 const Navigator = preload("res://scripts/game/navigator.gd")
 const Visuals = preload("res://scripts/visuals/visual_factory.gd")
-const BOT_WEAPONS = ["m4","mp5","rpk","kar98","scarl","vector","mk14","spas12","ak12","p90","m249","barrett","m16a4","uzi","ksg","deagle"]
+const BRAIN = preload("res://scripts/game/bot_brain.gd")
+## Spawn safety tuning; see `choose_spawn`. Distances are metres.
+const SPAWN_FAR_FRACTION := 0.6
+const SPAWN_MIN_FAR := 30.0
+const SPAWN_BOT_SPACING := 20.0
+const SPAWN_BOT_SIGHT_MARGIN := 20.0
+const SPAWN_PEEK := 1.2
+const SPAWN_SIGHT_TRIM := 0.6
+const SPAWN_PERSONAL_SPACE := 1.5
+const SPAWN_DISTANCE_CAP := 200.0
+const SPAWN_OWN_PAD_BONUS := 40.0
+const SPAWN_PAD_BONUS := 8.0
+const SPAWN_SCORE_WINDOW := 12.0
+const SPAWN_SCAN_LIMIT := 40
+const SPAWN_FALLBACK_SAMPLES := 16
+## Chest of the arriving actor above its feet; its head is its own eye height.
+const SPAWN_CHEST_HEIGHT := 1.0
+const BOT_WEAPONS =["m4","mp5","rpk","kar98","scarl","vector","mk14","spas12","ak12","p90","m249","barrett","m16a4","uzi","ksg","deagle"]
 var config: Dictionary = {}
 var loadout: Dictionary = {}
 var mode: Dictionary = {}
@@ -28,6 +45,10 @@ var state: String = "warmup"
 var winner: Variant = null
 var scores: Dictionary = {}
 var recent_spawns: Dictionary = {}
+var _home_centres: Dictionary = {}
+## How the last `choose_spawn` decided: candidates considered, sightlines
+## evaluated, the far threshold and the tier it chose from (3 = least exposed).
+var spawn_trace: Dictionary = {}
 var effects: Array = []
 var rockets: Array = []
 var equipment
@@ -167,42 +188,234 @@ func tick(dt: float) -> void:
 		objective.tick(dt)
 	if streaks and mode.id != "gungame":
 		streaks.tick(dt, false)
-	recorder.record(elapsed,snapshot_actors())
+	if recorder.should_record(elapsed):
+		recorder.record(elapsed,snapshot_actors())
 	if state != "end" and simulates_match:
 		_check_win()
 
 func _spawn(actor) -> void:
 	radar.forget(actor.actor_id)
-	var candidates: Array = []
-	for point in map.spawn_points:
-		if point.get("team", "") == actor.team:
-			candidates.append(point)
-	if candidates.is_empty():
-		candidates = map.spawn_points
-	if candidates.is_empty():
+	var choice: Dictionary = choose_spawn(actor)
+	if choice.is_empty():
 		push_error("Map contains no valid spawn points")
 		return
-	var recent: Array = recent_spawns.get(actor.team,[])
-	var scored: Array = []
-	var best: float = -INF
-	for point in candidates:
-		var enemy_distance: float = INF
-		var ally_distance: float = INF
-		for other in actors:
-			if other != actor and other.alive and (actor.team == "ffa" or other.team != actor.team):
-				enemy_distance = minf(enemy_distance,point.position.distance_to(other.body_position()))
-		for previous in recent:
-			ally_distance = minf(ally_distance,point.position.distance_to(previous))
-		var score: float = (enemy_distance if is_finite(enemy_distance) else 0.0) + 0.8*(ally_distance if is_finite(ally_distance) else 0.0)
-		best = maxf(best,score)
-		scored.append({"point":point,"score":score})
-	var eligible = scored.filter(func(item):return item.score >= best-14.0)
-	var choice: Dictionary = eligible[randi()%eligible.size()].point
 	actor.spawn_at(choice.position,float(choice.get("yaw",0)))
+	var recent: Array = recent_spawns.get(actor.team,[])
 	recent.append(choice.position)
-	while recent.size() > maxi(1,candidates.size()-1):
+	while recent.size() > 8:
 		recent.pop_front()
 	recent_spawns[actor.team] = recent
+
+## Spawn selection. Nobody should be spawn-killed or watch an enemy appear, so a
+## spawn must be out of every living enemy's sight and, against a human, on the
+## far side of the map. Sight is the solid-box sightline bots use to acquire a
+## target (`MapWorld.sightline_blocked`); see `_spawn_exposed` for the lines
+## tested. Pairs involving a human are strict; bot-versus-bot pairs only decide
+## between spawns that are already safe.
+##
+## Candidates are tried in score order and fall through four tiers:
+##   0  hidden from everyone, far from humans, spaced from enemy bots
+##   1  hidden from every strict enemy and far from humans
+##   2  hidden from every strict enemy
+##   3  least exposed (only when the whole map is watched)
+## "Far" is relative to the map: within the farthest SPAWN_FAR_FRACTION of the
+## distance any candidate reaches from the nearest strict enemy, so enemies land
+## on the opposite side from a player wherever that player stands. Team pads are
+## preferred; another team's pads and open ground are used once a team's own pads
+## are watched or too close, i.e. the spawns flip. Capture the Flag never flips
+## off a team's own half, so a flipped spawn cannot land on the enemy flag.
+func choose_spawn(actor) -> Dictionary:
+	var pool: Array[Dictionary] = map.spawn_pool()
+	if pool.is_empty():
+		return {}
+	var threats: Array = _spawn_threats(actor)
+	var has_strict := false
+	var has_soft := false
+	for threat: Dictionary in threats:
+		has_strict = has_strict or bool(threat.strict)
+		has_soft = has_soft or not bool(threat.strict)
+	var recent: Array = recent_spawns.get(actor.team, [])
+	var rows: Array = []
+	var farthest := 0.0
+	for candidate: Dictionary in pool:
+		if not _spawn_allowed(candidate, actor):
+			continue
+		var point: Vector3 = candidate.position
+		var strict_distance := INF
+		var soft_distance := INF
+		for threat: Dictionary in threats:
+			var distance: float = point.distance_to(threat.base)
+			if threat.strict:
+				strict_distance = minf(strict_distance, distance)
+			else:
+				soft_distance = minf(soft_distance, distance)
+		var crowded := false
+		for other in actors:
+			if other != actor and other.alive and Vector2(point.x - other.position.x, point.z - other.position.z).length_squared() < SPAWN_PERSONAL_SPACE * SPAWN_PERSONAL_SPACE:
+				crowded = true
+				break
+		var spread := INF
+		for previous: Vector3 in recent:
+			spread = minf(spread, point.distance_to(previous))
+		if is_finite(strict_distance):
+			farthest = maxf(farthest, strict_distance)
+		var nearest := minf(strict_distance, soft_distance)
+		var primary := strict_distance if has_strict else nearest
+		var score := _capped(primary, SPAWN_DISTANCE_CAP) + 0.5 * _capped(nearest, 60.0) + 0.3 * _capped(spread, 25.0)
+		if candidate.pad:
+			score += SPAWN_PAD_BONUS
+			if actor.team in candidate.teams:
+				score += SPAWN_OWN_PAD_BONUS
+		rows.append({"candidate": candidate, "score": score, "strict": strict_distance, "soft": soft_distance, "crowded": crowded, "seen": 0})
+	if rows.is_empty():
+		return pool[randi() % pool.size()]
+	var far_threshold := minf(farthest, maxf(SPAWN_MIN_FAR, farthest * SPAWN_FAR_FRACTION)) if has_strict else 0.0
+	# Bots acquire a target by its eye: 1.7 m for the local player, 1.6 m otherwise.
+	var head: float = 1.7 if actor.is_player else 1.6
+	rows.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.score > b.score)
+	var tiers: Array = [[], [], [], []]
+	var evaluated := 0
+	for row: Dictionary in rows:
+		# Rows are in score order: once a fully safe spawn exists, nothing outside
+		# its random window can be chosen, so the remaining sightlines are skipped.
+		if not tiers[0].is_empty() and row.score < tiers[0][0].score - SPAWN_SCORE_WINDOW:
+			break
+		# Until something safe turns up every candidate is worth a look; a
+		# crowded map can hide its only safe corner far down the list.
+		if evaluated >= SPAWN_SCAN_LIMIT and not (tiers[0].is_empty() and tiers[1].is_empty() and tiers[2].is_empty()):
+			break
+		if row.crowded:
+			tiers[3].append(row)
+			continue
+		evaluated += 1
+		var point: Vector3 = row.candidate.position
+		var strict_seen := false
+		var soft_seen := false
+		for threat: Dictionary in threats:
+			if threat.strict:
+				if _spawn_exposed(point, threat, head):
+					strict_seen = true
+					break
+			elif not soft_seen:
+				soft_seen = _spawn_exposed(point, threat, head)
+		var far: bool = row.strict >= far_threshold
+		if strict_seen:
+			tiers[3].append(row)
+		elif not soft_seen and far and (not has_soft or row.soft >= SPAWN_BOT_SPACING):
+			tiers[0].append(row)
+		elif far:
+			tiers[1].append(row)
+		else:
+			tiers[2].append(row)
+	spawn_trace = {"evaluated": evaluated, "candidates": rows.size(), "far": far_threshold, "tier": 3}
+	for tier in 3:
+		if not tiers[tier].is_empty():
+			var best: float = tiers[tier][0].score
+			var eligible: Array = tiers[tier].filter(func(row: Dictionary) -> bool: return row.score >= best - SPAWN_SCORE_WINDOW)
+			spawn_trace.tier = tier
+			return eligible[randi() % eligible.size()].candidate
+	# The whole map is watched: of the best few open spots, take the one the
+	# fewest enemies can see.
+	var exposed: Array = tiers[3].filter(func(row: Dictionary) -> bool: return not row.crowded).slice(0, SPAWN_FALLBACK_SAMPLES)
+	if exposed.is_empty():
+		return rows[0].candidate
+	for row: Dictionary in exposed:
+		for threat: Dictionary in threats:
+			if threat.strict and _spawn_exposed(row.candidate.position, threat, head):
+				row.seen += 1
+	exposed.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.seen < b.seen if a.seen != b.seen else a.score > b.score)
+	return exposed[0].candidate
+
+## Living enemies of `actor`, with what each one can see. A human sees across the
+## whole map; a bot only acquires targets inside its difficulty's view range, so
+## sightlines from a bot further than that (plus a margin for its approach) do
+## not count. Remote actors are ignored until their first snapshot places them.
+func _spawn_threats(actor) -> Array:
+	var result: Array = []
+	var actor_human := is_human(actor)
+	var bot_sight: float = float(BRAIN.DIFFICULTY.get(str(config.get("difficulty", "regular")), BRAIN.DIFFICULTY.regular).viewRange) + SPAWN_BOT_SIGHT_MARGIN
+	for other in actors:
+		if other == actor or not is_instance_valid(other) or not other.alive:
+			continue
+		if actor.team != "ffa" and other.team == actor.team:
+			continue
+		if "has_snapshot" in other and not other.has_snapshot:
+			continue
+		var other_human := is_human(other)
+		result.append({"base": other.position, "eye": other.eye_position(), "human": other_human, "strict": actor_human or other_human, "sight": INF if other_human else bot_sight})
+	return result
+
+## Local bots carry a brain; bots simulated by a network host arrive as remote
+## actors with ids from 1,000,000 (see `start`). Everything else is a person.
+static func is_human(actor) -> bool:
+	return actor.is_player or (actor.brain == null and actor.actor_id < 1000000)
+
+## Whether the enemy described by `threat` could see an actor whose eye is
+## `head` metres above `point`. A bot only ever looks from its own eye, the line
+## it acquires targets along. A person can also stand up or step out from cover,
+## so a human enemy is also tested from a standing eye and a short peek to
+## either side of it.
+func _spawn_exposed(point: Vector3, threat: Dictionary, head: float = 1.6) -> bool:
+	var base: Vector3 = threat.base
+	var flat := Vector2(point.x - base.x, point.z - base.z)
+	if flat.length() > float(threat.sight):
+		return false
+	if not threat.human:
+		# Exactly the bot's own eye-to-eye acquisition line.
+		return _sightline_open(threat.eye, point + Vector3.UP * head)
+	var eyes: Array[Vector3] = [threat.eye]
+	var standing: Vector3 = base + Vector3.UP * 1.7
+	if not standing.is_equal_approx(threat.eye):
+		eyes.append(standing)
+	if flat.length_squared() > 0.01:
+		var side := Vector3(-flat.y, 0.0, flat.x).normalized() * SPAWN_PEEK
+		eyes.append(standing + side)
+		eyes.append(standing - side)
+	for eye: Vector3 in eyes:
+		for height: float in [head, SPAWN_CHEST_HEIGHT]:
+			if _sightline_open(eye, point + Vector3.UP * height):
+				return true
+	return false
+
+## Bots ignore the last 0.6 m of a sightline when acquiring a target
+## (`BotBrain._visible`). Trimming both ends tests the part of the line both
+## directions share, so a spawn counted as hidden is hidden from either side.
+func _sightline_open(from: Vector3, to: Vector3) -> bool:
+	var offset := to - from
+	var length := offset.length()
+	if length <= SPAWN_SIGHT_TRIM * 2.0:
+		return true
+	var trim := offset / length * SPAWN_SIGHT_TRIM
+	return not map.sightline_blocked(from + trim, to - trim)
+
+func _spawn_allowed(candidate: Dictionary, actor) -> bool:
+	if mode.get("id", "") != "ctf" or actor.team == "ffa":
+		return true
+	if candidate.pad:
+		return actor.team in candidate.teams
+	return _home_team(candidate.position) == actor.team
+
+## The team whose authored pads are nearest on average, i.e. whose half this is.
+func _home_team(point: Vector3) -> String:
+	if _home_centres.is_empty():
+		var sums: Dictionary = {}
+		for pad: Dictionary in map.spawn_points:
+			if str(pad.team) in ["blue", "red"]:
+				var entry: Array = sums.get(str(pad.team), [Vector3.ZERO, 0])
+				sums[str(pad.team)] = [entry[0] + pad.position, entry[1] + 1]
+		for team: String in sums:
+			_home_centres[team] = sums[team][0] / float(sums[team][1])
+	var best := ""
+	var best_distance := INF
+	for team: String in _home_centres:
+		var distance: float = point.distance_squared_to(_home_centres[team])
+		if distance < best_distance:
+			best = team
+			best_distance = distance
+	return best
+
+static func _capped(value: float, cap: float) -> float:
+	return cap if not is_finite(value) else minf(value, cap)
 
 func cancel_equipment_charges()->void:
 	throw_charges.clear()
@@ -476,7 +689,6 @@ func _check_win() -> void:
 		if outcome.get("over",false):
 			end_match(outcome.get("winner"))
 		return
-	var rows=score_rows()
 	if mode.id=="tdm":
 		var blue=team_kills("blue")
 		var red=team_kills("red")
@@ -484,7 +696,9 @@ func _check_win() -> void:
 			end_match("blue" if blue>=red else "red")
 		elif elapsed>=mode.timeLimit:
 			end_match(("blue" if blue>red else "red") if blue!=red else null)
-	elif mode.id in ["ffa","gungame"] and not rows.is_empty():
+	elif mode.id in ["ffa","gungame"] and not scores.is_empty():
+		# Only this branch needs a ranking; TDM can use its two team totals alone.
+		var rows: Array = scores.values().duplicate(true)
 		rows.sort_custom(func(a,b):
 			if a.kills!=b.kills:return a.kills>b.kills
 			if a.score!=b.score:return a.score>b.score
@@ -562,6 +776,7 @@ func hud_state() -> Dictionary:
 	var result={"health":player.health,"maxHealth":player.max_health,"mag":gun.magazine,"reserve":gun.reserve,"weaponName":gun.definition.name,"blue":blue,"red":red,"mode":mode.id,"timeLeft":maxf(0,float(mode.timeLimit)-elapsed),"spread":18.0*(1-gun.ads_factor)+(10.0 if player.firing else 0.0),"ads":player.ads_factor,"reloading":gun.state=="reloading","alive":player.alive,"deathText":"RESPAWNING IN %d" % ceili(maxf(0,respawn_delay-player.death_timer)),"streakScore":streak_scores[player.actor_id],"prompt":prompt,"objective":objective_hud,"minimap":{"player":{"x":player.position.x,"z":player.position.z,"yaw":atan2(direction.x,direction.z)},"blips":blips,"bounds":map.bounds,"layout":map.radar_layout,"name":map.map_name,"jammed":false}}
 	result.minimap.jammed = jammed
 	result.enemyIndicators = radar.indicators(self)
+	result.sight = player.sight_state()
 	if not throw_charges.is_empty():result.prompt=throw_prompt()
 	result.streaks = streaks.hud(player) if streaks else []
 	var next: Dictionary = streaks.next_streak(player) if streaks else {}

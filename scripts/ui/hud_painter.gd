@@ -16,10 +16,14 @@ var regular := UI.font(600)
 var heavy := UI.font(800)
 var streak_gradient := GradientTexture2D.new()
 var ready_gradient := GradientTexture2D.new()
+## Scope picture and reflex reticles, drawn behind the rest of the HUD.
+var sight_overlay: Control
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	sight_overlay = preload("res://scripts/ui/sight_overlay.gd").new()
+	add_child(sight_overlay)
 	for texture in [streak_gradient, ready_gradient]:
 		texture.width = 160
 		texture.height = 6
@@ -27,29 +31,43 @@ func _ready() -> void:
 		texture.gradient.colors = PackedColorArray([Color("ffe27a") if texture == ready_gradient else Color("9fd13e"), UI.GREEN])
 
 func _process(delta: float) -> void:
+	# Static pause frames need no redraw. Active markers, expiry transitions and
+	# the available-streak pulse still animate, without allocating filtered arrays.
+	var animate := hit_time > 0 or not damage_arcs.is_empty()
 	hit_time = maxf(0, hit_time - delta)
 	damage_time = maxf(0, damage_time - delta)
-	for arc in damage_arcs:
-		arc.life -= delta
-	damage_arcs = damage_arcs.filter(func(arc): return arc.life > 0)
-	for entry in kills:
-		entry.life -= delta
-	kills = kills.filter(func(e): return e.life > 0)
-	if visible:
+	for index in range(damage_arcs.size() - 1, -1, -1):
+		damage_arcs[index].life -= delta
+		if damage_arcs[index].life <= 0:
+			damage_arcs.remove_at(index)
+	for index in range(kills.size() - 1, -1, -1):
+		kills[index].life -= delta
+		if kills[index].life <= 0:
+			kills.remove_at(index)
+			animate = true
+	for entry in state.get("streaks", []):
+		if entry.get("available", false):
+			animate = true
+			break
+	if visible and animate:
 		queue_redraw()
 
 func update_state(values: Dictionary) -> void:
 	state.merge(values, true)
+	if sight_overlay:
+		sight_overlay.update_sight(state.get("sight", {}) if state.get("alive", true) and not state.get("killcam", false) else {})
 	queue_redraw()
 
 func hit_marker(headshot: bool) -> void:
 	hit_headshot = headshot
 	hit_time = 0.15
+	queue_redraw()
 
 func damage_from(angle: float) -> void:
 	damage_angle = angle
 	damage_time = 0.7
 	damage_arcs.append({"angle": angle, "life": 1.2})
+	queue_redraw()
 
 func add_kill(event: Dictionary) -> void:
 	var entry := event.duplicate(true)
@@ -57,6 +75,7 @@ func add_kill(event: Dictionary) -> void:
 	kills.push_front(entry)
 	if kills.size() > 5:
 		kills.pop_back()
+	queue_redraw()
 
 func label_at(text: String, position: Vector2, font_size: int = 14, color: Color = UI.WHITE, centered: bool = false, bold: bool = true) -> void:
 	var face: Font = heavy if bold else regular
@@ -86,11 +105,18 @@ func _draw() -> void:
 		_draw_streaks()
 		_draw_kills()
 		if alive:
-			var spread: float = maxf(0, state.get("spread", 4))
-			for dir in [Vector2.UP, Vector2.DOWN, Vector2.LEFT, Vector2.RIGHT]:
-				draw_line(center + dir * spread, center + dir * (spread + 7), UI.INK, 4)
-				draw_line(center + dir * spread, center + dir * (spread + 7), UI.WHITE, 2)
-			draw_rect(Rect2(center - Vector2.ONE, Vector2(2, 2)), UI.WHITE)
+			# A sight's own reticle takes over from the crosshair as the weapon
+			# comes up; iron sights keep the centre point.
+			var sight: Dictionary = state.get("sight", {})
+			var kind := str(sight.get("kind", "none"))
+			var fade := 1.0 if kind == "none" else 1.0 - smoothstep(0.35, 0.75, float(sight.get("ads", 0.0)))
+			if fade > 0.0:
+				var spread: float = maxf(0, state.get("spread", 4))
+				for dir in [Vector2.UP, Vector2.DOWN, Vector2.LEFT, Vector2.RIGHT]:
+					draw_line(center + dir * spread, center + dir * (spread + 7), Color(UI.INK, fade), 4)
+					draw_line(center + dir * spread, center + dir * (spread + 7), Color(UI.WHITE, fade), 2)
+			if fade > 0.0 or kind == "iron":
+				draw_rect(Rect2(center - Vector2.ONE, Vector2(2, 2)), UI.WHITE)
 	if hit_time > 0:
 		var color := Color("ff4d4d") if hit_headshot else Color.WHITE
 		color.a = hit_time / 0.15

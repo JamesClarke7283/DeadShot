@@ -53,6 +53,11 @@ func _run() -> void:
 	assert(is_equal_approx(audio._mix_master,0.54))
 	audio.set_music_intensity(0.9)
 	audio.set_music_duck(0.7)
+	var duck_tween:=audio._music_tween
+	for repeated in 120:audio.set_music_duck(0.7)
+	assert(audio._music_tween==duck_tween,"Repeated HUD duck values do not restart the music tween")
+	audio.set_music_duck(0.0)
+	assert(audio._music_tween!=duck_tween,"A changed duck value still starts a new music transition")
 	audio.deafen(0.1)
 	await create_timer(0.6).timeout
 	audio.stop_music()

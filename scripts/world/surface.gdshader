@@ -79,6 +79,11 @@ uniform vec3 translucency_color : source_color = vec3(0.35, 0.55, 0.18);
 uniform vec3 sun_direction = vec3(0.5, 1.0, 0.35);
 
 varying vec3 world_position;
+// The player's own weapon variant (`graphics_quality.gd`, flag 32) declares the
+// sight window here: a view-space cone through the aimed optic's lens. Every
+// fragment of the weapon inside it is cut away, so the solid optic housing
+// reads as a see-through tube.
+// SIGHT_WINDOW_UNIFORM
 
 // QUALITY_TRIPLANAR_BEGIN
 vec3 triplanar_weight(vec3 normal) {
@@ -109,6 +114,7 @@ void vertex() {
 }
 
 void fragment() {
+	// SIGHT_WINDOW_DISCARD
 	vec3 geometric = normalize((INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).xyz);
 	vec3 view_direction = normalize(INV_VIEW_MATRIX[3].xyz - world_position);
 

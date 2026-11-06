@@ -286,15 +286,27 @@ func audio_muffle() -> float:
 
 func set_direct(values: Dictionary) -> void:
 	# Legacy HUD callers can supply exact opacity/pixel values. The most recent
-	# supplied tint wins, matching the single source tint layer.
+	# supplied tint wins, matching the single source tint layer. HUD updates arrive
+	# every physics tick, so unchanged values must not repeat all shader writes.
+	var changed := false
 	for key in DIRECT_RAW_KEYS:
-		if values.has(key): direct[key] = maxf(0, float(values[key]))
+		if values.has(key):
+			var value := maxf(0, float(values[key]))
+			if not direct.has(key) or float(direct[key]) != value:
+				direct[key] = value
+				changed = true
 	for key in DIRECT_TINT_KEYS:
 		if values.has(key):
-			direct.tintOpacity = clampf(float(values[key]), 0, 1)
-			direct.tintColor = Color(120.0 / 255, 160.0 / 255, 1, 0.9) if key == "stunOpacity" else (Color(180.0 / 255, 0, 0) if key == "damageOpacity" else SUPPRESS_COLOR if key == "suppressOpacity" else Color(0, 0, 0))
-			direct.tintKind = "" if key == "stunOpacity" or key == "damageOpacity" else ("suppress" if key == "suppressOpacity" else "concuss")
-	_render()
+			var opacity := clampf(float(values[key]), 0, 1)
+			var color := Color(120.0 / 255, 160.0 / 255, 1, 0.9) if key == "stunOpacity" else (Color(180.0 / 255, 0, 0) if key == "damageOpacity" else SUPPRESS_COLOR if key == "suppressOpacity" else Color(0, 0, 0))
+			var kind := "" if key == "stunOpacity" or key == "damageOpacity" else ("suppress" if key == "suppressOpacity" else "concuss")
+			if not direct.has("tintOpacity") or float(direct.tintOpacity) != opacity or direct.get("tintColor") != color or direct.get("tintKind") != kind:
+				direct.tintOpacity = opacity
+				direct.tintColor = color
+				direct.tintKind = kind
+				changed = true
+	if changed:
+		_render()
 
 func _render() -> void:
 	if not is_instance_valid(tint_layer): return
@@ -311,6 +323,11 @@ func _render() -> void:
 	var grade := maxf(clampf(stun / 20.0, 0.0, 1.0) * DESATURATE * GRADE_STRENGTH, suppressed)
 	var split := clampf(stun / 20.0, 0.0, 1.0) * CHROMA_SPLIT
 	var bloom := 0.0 if direct.has("flashOpacity") else _strength(bloom_state) * BLOOM_GAIN
+	var active := flash > 0 or bloom > 0 or blur > 0 or opacity > 0 or grade > 0 or suppressed > 0 or concuss > 0
+	# Once the final active-to-idle render has hidden the compositor, idle HUD and
+	# timer updates must not touch every material again.
+	if not active and not visible:
+		return
 	tint_layer.material.set_shader_parameter("tint_color", color)
 	tint_layer.material.set_shader_parameter("tint_opacity", opacity)
 	# The concussive edge is a black wash, and the vignette layer already draws
@@ -339,7 +356,7 @@ func _render() -> void:
 	# The screen-reading passes share one copy of the frame, so it is live whenever
 	# the grade, the blur or the split needs to read it.
 	blur_copy.visible = grade > 0 or blur > 0 or split > 0
-	visible = flash > 0 or bloom > 0 or blur > 0 or opacity > 0 or grade > 0 or suppressed > 0 or concuss > 0
+	visible = active
 
 ## Pushes the muffled-audio state to an AudioManager when one is reachable. It is
 ## found by walking up from this layer rather than being wired in, because the

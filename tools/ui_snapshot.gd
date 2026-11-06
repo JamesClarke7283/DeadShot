@@ -28,6 +28,9 @@ func run() -> void:
 	await capture("prematch")
 	ui.show_class_editor()
 	await capture("class")
+	var kit_toggle := ui.menu.find_child("FieldKitToggle", true, false) as Button
+	if kit_toggle: kit_toggle.pressed.emit()
+	await capture("field_kit")
 	ui.show_options()
 	await capture("options")
 	ui.show_multiplayer()

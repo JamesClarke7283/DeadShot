@@ -24,7 +24,7 @@ func tick(bot, dt: float, world) -> void:
 	error_timer -= dt
 	melee_cooldown -= dt
 	repath_timer -= dt
-	_select_target(bot, world)
+	_select_target(bot, world, dt)
 	if is_instance_valid(target) and target.alive:
 		_engage(bot, dt, world)
 	else:
@@ -43,8 +43,8 @@ func _visible(bot, other, world) -> bool:
 	var distance = vector.length()
 	return distance < 0.001 or world.map.raycast_boxes(bot.eye_position(), vector / distance, distance - 0.6) < 0
 
-func _select_target(bot, world) -> void:
-	select_timer -= 1.0 / 60.0
+func _select_target(bot, world, dt: float) -> void:
+	select_timer -= dt
 	if is_instance_valid(target) and target.alive and select_timer > 0:
 		return
 	select_timer = 0.2

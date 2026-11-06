@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="200" viewBox="0 0 960 200" role="img" aria-labelledby="title desc">
+  <title id="title">DeadShot</title>
+  <desc id="desc">A lime crosshair emblem beside angular DeadShot lettering.</desc>
+  <g id="emblem">
+    <path d="M100 10 164 36 190 100 164 164 100 190 36 164 10 100 36 36Z" fill="#10171b" stroke="#cdeb6e" stroke-width="5" stroke-linejoin="round"/>
+    <circle cx="100" cy="100" r="54" fill="none" stroke="#e6edf5" stroke-width="6" stroke-dasharray="66 19" transform="rotate(-45 100 100)"/>
+    <path d="M100 24v32M100 144v32M24 100h32M144 100h32" fill="none" stroke="#cdeb6e" stroke-width="8" stroke-linecap="square"/>
+    <path d="m100 62 15 38-15 38-15-38Z" fill="#cdeb6e"/>
+    <circle cx="100" cy="100" r="7" fill="#0a0c10"/>
+  </g>
+  <g id="wordmark" transform="translate(240 50)" fill-rule="evenodd">
+    <g fill="#e6edf5">
+      <path d="M0 0h38l32 28v44l-32 28H0Zm18 18v64h14l18-16V34L32 18Z"/>
+      <path d="M86 0h70v18h-50v22h48v18h-48v24h50v18H86Z"/>
+      <path d="m172 100 26-100h22l26 100h-20l-6-22h-24l-6 22Zm30-40h12l-6-28Z"/>
+      <path d="M262 0h38l32 28v44l-32 28h-38Zm18 18v64h14l18-16V34l-18-16Z"/>
+    </g>
+    <g fill="#cdeb6e">
+      <path d="M418 0h-58l-12 12v34l12 12h36v22h-48v20h58l12-12V48l-12-12h-36V20h48Z"/>
+      <path d="M434 0h20v39h30V0h20v100h-20V59h-30v41h-20Z"/>
+      <path d="M532 0h46l12 12v76l-12 12h-46l-12-12V12Zm8 20v60h30V20Z"/>
+      <path d="M606 0h74v20h-27v80h-20V20h-27Z"/>
+    </g>
+    <path d="M0 116h680l-12 7H12Z" fill="#cdeb6e" opacity=".42"/>
+  </g>
+</svg>

@@ -23,6 +23,7 @@ const Store := preload("res://scripts/persistence/save_store.gd")
 const Hud := preload("res://scripts/ui/hud_painter.gd")
 const Touch := preload("res://scripts/ui/touch_controls.gd")
 const GraphicsQuality := preload("res://scripts/world/graphics_quality.gd")
+const Armory := preload("res://scripts/ui/armory.gd")
 const MAPS = preload("res://scripts/world/map_catalog.gd").ENTRIES
 const MODES := [{"id": "tdm", "name": "TEAM DEATHMATCH"}, {"id": "ffa", "name": "FREE-FOR-ALL"}, {"id": "dom", "name": "DOMINATION"}, {"id": "ctf", "name": "CAPTURE THE FLAG"}, {"id": "gungame", "name": "GUN GAME"}]
 const DIFFICULTIES := [{"id": "recruit", "name": "Recruit"}, {"id": "regular", "name": "Regular"}, {"id": "veteran", "name": "Veteran"}]
@@ -38,11 +39,7 @@ var match_config: Dictionary
 var current_slot := 0
 var loadout: Dictionary
 var tables: Dictionary = {}
-var class_body: HBoxContainer
-var class_preview: Node3D
-var preview_camera: Camera3D
-var preview_time := 0.0
-var stat_bars: Dictionary = {}
+var armory: Control
 var network_status := ""
 var network_config := {"url": "ws://0.0.0.0:8090/ws", "name": "Player", "room": "", "team": "auto"}
 var copy_address := ""
@@ -58,6 +55,11 @@ var touch_controls: Control
 var touch_enabled := DisplayServer.is_touchscreen_available() or OS.has_feature("android") or OS.has_feature("ios")
 var fps_counter: Label
 var fps_elapsed := 0.0
+var _scoreboard_rows: Array = []
+var _scoreboard_blue := -1
+var _scoreboard_red := -1
+var _scoreboard_mode := ""
+var _scoreboard_size := Vector2.ZERO
 var options_status := ""
 var web_import_callback
 ## Main supplies gamepad-held actions; touch actions are checked locally.
@@ -152,9 +154,6 @@ func _process(delta: float) -> void:
 		_update_screen_effects(delta)
 	elif is_instance_valid(effect_layer):
 		effect_layer.hide()
-	if screen == "class" and is_instance_valid(class_preview):
-		preview_time += delta * 0.4
-		class_preview.rotation.y = -sin(preview_time) * 0.5
 
 func _new_overlay(node_name: String) -> Control:
 	var control := Control.new()
@@ -170,6 +169,7 @@ func _clear(control: Node) -> void:
 
 func _switch(next: String, transparent: bool = false) -> void:
 	screen = next
+	armory = null
 	_clear(menu)
 	menu.show()
 	scoreboard.hide()
@@ -303,27 +303,15 @@ func show_main_menu() -> void:
 	center.offset_top = -20
 	var column := _vbox(center, 4)
 	column.alignment = BoxContainer.ALIGNMENT_CENTER
-	var logo := _label(column, "DEADSHOT", 88, UI.GREEN, 900)
-	logo.add_theme_font_override("font", UI.font(900, 5))
-	logo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	logo.add_theme_color_override("font_shadow_color", UI.INK)
-	logo.add_theme_constant_override("shadow_offset_x", 6)
-	logo.add_theme_constant_override("shadow_offset_y", 6)
-	logo.add_theme_constant_override("outline_size", 3)
-	logo.add_theme_color_override("font_outline_color", UI.INK)
-	for glow_info in [[24, 0.015], [20, 0.025], [16, 0.035], [12, 0.05], [8, 0.06]]:
-		var glow := Label.new()
-		logo.add_child(glow)
-		glow.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		glow.show_behind_parent = true
-		glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		glow.text = "DEADSHOT"
-		glow.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		glow.add_theme_font_override("font", UI.font(900, 5))
-		glow.add_theme_font_size_override("font_size", 88)
-		glow.add_theme_color_override("font_color", Color.TRANSPARENT)
-		glow.add_theme_color_override("font_outline_color", Color(0.804, 0.922, 0.431, glow_info[1]))
-		glow.add_theme_constant_override("outline_size", glow_info[0])
+	var logo := TextureRect.new()
+	logo.name = "DeadShotLogo"
+	logo.texture = load("res://assets/branding/deadshot_logo.svg")
+	logo.custom_minimum_size = Vector2(680, 142)
+	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	logo.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	column.add_child(logo)
 	var subtitle := _label(column, "LOCK IN. LOAD OUT. LIGHT 'EM UP.", 18, UI.MUTED)
 	subtitle.add_theme_font_override("font", UI.font(600, 3))
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -636,7 +624,7 @@ func show_controls() -> void:
 	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_label(content, "KEYBOARD & MOUSE", 15, UI.GREEN, 800)
 	_control_row(content, "Mouse movement", "Look around")
-	for item in [["forward", "W / Up", "Move forward"], ["back", "S / Down", "Move backward"], ["left", "A / Left", "Strafe left"], ["right", "D / Right", "Strafe right"], ["fire", "Left mouse", "Fire weapon"], ["ads", "Right mouse", "Hold to aim down sights"], ["reload", "R", "Reload"], ["sprint", "Shift", "Sprint while moving forward; lower stance while stationary"], ["crouch", "Ctrl / C", "Lower stance: stand, crouch, then prone"], ["jump", "Space", "Raise stance: prone, crouch, then stand; skip a replay"], ["weapon_primary", "1", "Equip primary weapon"], ["weapon_secondary", "2", "Equip secondary weapon"], ["weapon_next", "Wheel up / Wheel down", "Cycle weapons"], ["melee", "K", "Melee knife"], ["interact", "E", "Interact or pick up a nearby weapon"], ["lethal", "G", "Frag grenade: hold up to 1.25s to charge, release to throw. Other lethals: press to use; double-tap to detonate C4."], ["tactical", "Q", "Flashbang: hold up to 1.25s to charge, release to throw. Other tacticals: press to use."], ["scoreboard", "Tab", "Hold to show the scoreboard"], ["streaks", "Z", "Hold to open scorestreaks, then press a slot key below"], ["pause", "Escape", "Pause / resume; return from this guide to the pause menu"]]:
+	for item in [["forward", "W / Up", "Move forward"], ["back", "S / Down", "Move backward"], ["left", "A / Left", "Strafe left"], ["right", "D / Right", "Strafe right"], ["fire", "Left mouse", "Fire weapon"], ["ads", "Right mouse", "Hold to aim down sights; scopes zoom in"], ["reload", "R", "Reload"], ["sprint", "Shift", "Sprint while moving forward; lower stance while stationary"], ["crouch", "Ctrl / C", "Lower stance: stand, crouch, then prone"], ["jump", "Space", "Raise stance: prone, crouch, then stand; skip a replay"], ["weapon_primary", "1", "Equip primary weapon"], ["weapon_secondary", "2", "Equip secondary weapon"], ["weapon_next", "Wheel up / Wheel down", "Cycle weapons"], ["melee", "K", "Melee knife"], ["interact", "E", "Interact or pick up a nearby weapon"], ["lethal", "G", "Frag grenade: hold up to 1.25s to charge, release to throw. Other lethals: press to use; double-tap to detonate C4."], ["tactical", "Q", "Flashbang: hold up to 1.25s to charge, release to throw. Other tacticals: press to use."], ["scoreboard", "Tab", "Hold to show the scoreboard"], ["streaks", "Z", "Hold to open scorestreaks, then press a slot key below"], ["pause", "Escape", "Pause / resume; return from this guide to the pause menu"]]:
 		_control_row(content, _binding_names(item[0], item[1]), item[2])
 	for slot in 3:
 		_control_row(content, _binding_names("streak_slot_%d" % (slot + 1), str(slot + 1)), "Activate scorestreak slot %d while holding the scorestreak selector" % (slot + 1))
@@ -646,7 +634,7 @@ func show_controls() -> void:
 	for item in [["Left stick / right stick", "Move / look"], ["RT / LT", "Fire / hold to aim"], ["A / X", "Raise stance / reload"], ["Press left stick", "Sprint while moving forward; lower stance while stationary"], ["RB / LB", "Frag / flashbang: hold to charge, release to throw. Other equipment: press to use."], ["Y", "Open the scorestreak selector"], ["Back / Start", "Scoreboard / pause"]]:
 		_control_row(content, item[0], item[1])
 	_label(content, "TOUCHSCREEN", 15, UI.GREEN, 800)
-	for item in [["Left joystick / right drag", "Move / look"], ["FIRE / ADS", "Fire / aim down sights"], ["R / JMP", "Reload / raise stance"], ["LETH / TAC", "Frag / flashbang: hold to charge, release to throw. Other equipment: press to use."]]:
+	for item in [["Left joystick / right drag", "Move / look"], ["FIRE / ADS", "Fire / aim down sights and zoom scopes"], ["R / JMP", "Reload / raise stance"], ["LETH / TAC", "Frag / flashbang: hold to charge, release to throw. Other equipment: press to use."]]:
 		_control_row(content, item[0], item[1])
 	_button(column, "BACK TO PAUSE", show_pause, true)
 
@@ -692,287 +680,14 @@ func show_class_editor(slot: int = -1) -> void:
 		current_slot = clampi(slot, 0, Store.CLASS_SLOTS - 1)
 	loadout = store.get_loadout(current_slot)
 	_switch("class")
-	var margin := MarginContainer.new()
-	menu.add_child(margin)
-	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 32)
-	margin.add_theme_constant_override("margin_right", 32)
-	margin.add_theme_constant_override("margin_top", 24)
-	margin.add_theme_constant_override("margin_bottom", 24)
-	var scroll := ScrollContainer.new()
-	margin.add_child(scroll)
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	var column := _vbox(scroll, 14)
-	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var header := _hbox(column)
-	_label(header, "CREATE A CLASS", 28, UI.WHITE, 800).size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header.get_child(0).add_theme_font_override("font", UI.font(800, 2))
-	_button(header, "BACK", show_main_menu)
-	var tabs := _hbox(column, 6)
-	for i in Store.CLASS_SLOTS:
-		var tab := _button(tabs, str(i + 1), func(): show_class_editor(i), i != current_slot)
-		tab.add_theme_font_size_override("font_size", 14)
-		tab.custom_minimum_size.x = 40
-		for state_name in ["normal", "hover", "pressed"]:
-			var style: StyleBox = tab.get_theme_stylebox(state_name).duplicate()
-			style.content_margin_left = 10
-			style.content_margin_right = 10
-			style.content_margin_top = 8
-			style.content_margin_bottom = 8
-			tab.add_theme_stylebox_override(state_name, style)
-	class_body = _hbox(column, 24)
-	var controls := _vbox(class_body, 14)
-	controls.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	controls.custom_minimum_size.x = 450
-	var aside := _vbox(class_body, 14)
-	aside.custom_minimum_size.x = 360
-	var name_card := _card(controls, "Class Name")
-	var input := LineEdit.new()
-	input.text = loadout.name
-	input.max_length = 24
-	name_card.add_child(input)
-	input.text_changed.connect(func(value):
-		loadout.name = value
-		_persist_class())
-	_build_weapon_editor(controls, "primary", ["optic", "barrel", "magazine", "stock", "grip", "perk"])
-	_build_weapon_editor(controls, "secondary", ["optic"])
-	var equipment := _card(controls, "Equipment")
-	for category in ["tactical", "lethal"]:
-		_labeled_option(equipment, category.capitalize(), _filtered("equipment", "category", category), loadout[category], func(value):
-			loadout[category] = value
-			_persist_class())
-	_labeled_option(equipment, "Field Upgrade", _filtered("attachments", "slot", "fieldUpgrade"), loadout.fieldUpgrade, func(value):
-		loadout.fieldUpgrade = value
-		_persist_class())
-	var perks := _card(controls, "Perk Package")
-	for i in 3:
-		var tier: String = ["blue", "red", "gold"][i]
-		_labeled_option(perks, tier.capitalize(), _filtered("perks", "tier", tier), loadout.perks[i], func(value):
-			loadout.perks[i] = value
-			_persist_class())
-	var streaks := _card(controls, "Scorestreaks (up to 3)")
-	var streak_choices: Array = [{"id": "", "name": "None"}]
-	for streak in tables.streaks:
-		streak_choices.append({"id": streak.id, "name": "%s (%d)" % [streak.name, streak.cost], "description": "%s — earned at %d streak score." % [streak.name, streak.cost]})
-	for i in 3:
-		_labeled_option(streaks, "Streak %d" % (i + 1), streak_choices, loadout.streaks[i] if i < loadout.streaks.size() else "", func(value):
-			while loadout.streaks.size() < 3: loadout.streaks.append("")
-			loadout.streaks[i] = value
-			_persist_class())
-	var preview_card := _card(aside, "Preview")
-	_build_preview(preview_card)
-	var camo_card := _card(aside, "Camo")
-	var swatches := HFlowContainer.new()
-	swatches.add_theme_constant_override("h_separation", 8)
-	swatches.add_theme_constant_override("v_separation", 8)
-	camo_card.add_child(swatches)
-	for camo in tables.camos:
-		var color := Color.hex(int(camo.color) * 256 + 255)
-		var swatch := Button.new()
-		swatch.custom_minimum_size = Vector2(40, 40)
-		swatch.tooltip_text = camo.name
-		swatch.add_theme_stylebox_override("normal", UI.box(color, UI.GREEN if loadout.camo == camo.id else UI.INK, 8, 3, 0))
-		swatches.add_child(swatch)
-		swatch.pressed.connect(func():
-			loadout.camo = camo.id
-			_persist_class()
-			_refresh_preview()
-			for index in tables.camos.size():
-				var swatch_style: StyleBoxFlat = swatches.get_child(index).get_theme_stylebox("normal").duplicate()
-				swatch_style.border_color = UI.GREEN if tables.camos[index].id == loadout.camo else UI.INK
-				swatches.get_child(index).add_theme_stylebox_override("normal", swatch_style))
-	var picker := ColorPickerButton.new()
-	picker.custom_minimum_size = Vector2(40, 40)
-	picker.tooltip_text = "Custom colour"
-	picker.color = _camo_color()
-	picker.edit_alpha = false
-	for state_name in ["normal", "hover", "pressed"]:
-		picker.add_theme_stylebox_override(state_name, UI.box(Color("1c222d"), Color("5b6675"), 8, 2, 4))
-	swatches.add_child(picker)
-	picker.color_changed.connect(func(color):
-		loadout.camo = "#" + color.to_html(false)
-		_persist_class()
-		_refresh_preview())
-	var stats := _card(aside, "Primary Stats")
-	stat_bars.clear()
-	for key in ["mobility", "range", "accuracy", "damage", "control"]:
-		var row := _hbox(stats, 8)
-		_label(row, key.capitalize(), 12, Color("aeb7c4")).custom_minimum_size.x = 70
-		var progress := ProgressBar.new()
-		progress.show_percentage = false
-		progress.custom_minimum_size = Vector2(150, 10)
-		progress.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		progress.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		row.add_child(progress)
-		var value := _label(row, "0", 12)
-		value.custom_minimum_size.x = 32
-		value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		stat_bars[key] = {"bar": progress, "label": value}
-	_refresh_stats()
-
-func _weapon_choices() -> Array:
-	var result: Array = []
-	for category in ["assault", "smg", "lmg", "marksman", "sniper", "shotgun", "pistol", "launcher"]:
-		for weapon in tables.weapons:
-			if weapon.get("category", "") == category and weapon.id != "knife":
-				result.append({"id": weapon.id, "name": weapon.name, "description": category.capitalize()})
-	return result
-
-func _build_weapon_editor(parent: Node, kind: String, slots: Array) -> void:
-	var card := _card(parent, kind)
-	var attachments_container: VBoxContainer
-	_labeled_option(card, "Weapon", _weapon_choices(), loadout[kind].weaponId, func(value):
-		loadout[kind].weaponId = value
-		loadout[kind].attachments = []
-		_persist_class()
-		# Rebuild only attachment selects so changing guns keeps the scroll position.
-		var target: VBoxContainer = card.get_node("AttachmentRows")
-		_clear(target)
-		_add_attachment_rows(target, kind, slots)
-		_refresh_stats()
-		_refresh_preview())
-	attachments_container = _vbox(card, 6)
-	attachments_container.name = "AttachmentRows"
-	_add_attachment_rows(attachments_container, kind, slots)
-
-func _add_attachment_rows(parent: Node, kind: String, slots: Array) -> void:
-	for slot in slots:
-		var choices: Array = [{"id": "", "name": "None", "description": "Nothing equipped in this slot."}]
-		var chosen := ""
-		for attachment in _filtered("attachments", "slot", slot):
-			var option: Dictionary = attachment.duplicate(true)
-			var modifiers: Array = []
-			for key in attachment.get("modifiers", {}):
-				modifiers.append("%s %s" % [key, attachment.modifiers[key]])
-			if kind == "primary" and not modifiers.is_empty():
-				option.name += " (%s)" % ", ".join(modifiers)
-			choices.append(option)
-			if attachment.id in loadout[kind].attachments:
-				chosen = attachment.id
-		_labeled_option(parent, slot.capitalize(), choices, chosen, func(value):
-			var ids: Array = _filtered("attachments", "slot", slot).map(func(attachment): return attachment.id)
-			loadout[kind].attachments = loadout[kind].attachments.filter(func(id): return not id in ids)
-			if not value.is_empty(): loadout[kind].attachments.append(value)
-			_persist_class()
-			_refresh_stats()
-			_refresh_preview())
-
-func _camo_color() -> Color:
-	if str(loadout.camo).begins_with("#"):
-		return Color(loadout.camo)
-	for camo in tables.camos:
-		if camo.id == loadout.camo:
-			return Color.hex(int(camo.color) * 256 + 255)
-	return Color("2b2f36")
-
-func _build_preview(parent: Node) -> void:
-	var container := SubViewportContainer.new()
-	container.custom_minimum_size = Vector2(330, 260)
-	container.stretch = true
-	parent.add_child(container)
-	var viewport := SubViewport.new()
-	viewport.size = Vector2i(360, 260)
-	viewport.own_world_3d = true
-	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	container.add_child(viewport)
-	var environment := WorldEnvironment.new()
-	environment.environment = Environment.new()
-	environment.environment.background_mode = Environment.BG_COLOR
-	environment.environment.background_color = Color("090c11")
-	# Sky ambient so the weapon's metal parts pick up reflected light instead of
-	# reading as black silhouettes against the menu background.
-	environment.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.environment.ambient_light_color = Color("c4d4ee")
-	environment.environment.ambient_light_energy = 1.15
-	environment.environment.tonemap_mode = Environment.TONE_MAPPER_ACES
-	environment.environment.tonemap_exposure = 1.0
-	environment.environment.tonemap_white = 2.0
-	environment.environment.glow_enabled = true
-	environment.environment.glow_intensity = 0.35
-	environment.environment.glow_hdr_threshold = 1.2
-	viewport.add_child(environment)
-	var key := DirectionalLight3D.new()
-	key.light_color = Color("fff4e0")
-	key.light_energy = 2.4
-	viewport.add_child(key)
-	key.look_at_from_position(Vector3(0, 0, 0.4) + Vector3(0.6, 1, 0.5).normalized() * 2.0, Vector3(0, 0, 0))
-	var rim := DirectionalLight3D.new()
-	rim.light_color = Color("9fc4ff")
-	rim.light_energy = 1.4
-	viewport.add_child(rim)
-	rim.look_at_from_position(Vector3(0, 0, 0.4) + Vector3(-0.8, 0.5, 0.6), Vector3(0, 0, 0))
-	preview_camera = Camera3D.new()
-	preview_camera.position = Vector3.ZERO
-	preview_camera.fov = 55
-	preview_camera.near = 0.05
-	viewport.add_child(preview_camera)
-	class_preview = Node3D.new()
-	viewport.add_child(class_preview)
-	_refresh_preview()
-
-func _refresh_preview() -> void:
-	if not is_instance_valid(class_preview):
-		return
-	_clear(class_preview)
-	var factory_path := "res://scripts/visuals/visual_factory.gd"
-	if ResourceLoader.exists(factory_path):
-		var factory: GDScript = load(factory_path)
-		var previous_environment: Dictionary = factory.environment
-		factory.environment = {}
-		var model: Node3D = factory.create_weapon(loadout.primary.weaponId, _camo_color(), loadout.primary.attachments)
-		factory.environment = previous_environment
-		class_preview.add_child(model)
-		# Show the weapon's side profile, framed from its real bounds so every
-		# weapon and attachment combination fills the panel consistently.
-		model.rotation.y = PI * 0.5
-		var bounds := _model_bounds(model)
-		var centre := bounds.get_center()
-		var extent := maxf(bounds.size.x, maxf(bounds.size.y, bounds.size.z))
-		var distance := maxf(0.35, extent * 0.85)
-		model.position = Vector3(-centre.x, -centre.y, -centre.z - distance)
-
-func _model_bounds(model: Node) -> AABB:
-	var bounds := AABB()
-	var found := false
-	for child in model.get_children():
-		if child is MeshInstance3D:
-			var box: AABB = child.transform * child.mesh.get_aabb()
-			bounds = box if not found else bounds.merge(box)
-			found = true
-		elif child is Node3D:
-			var nested := _model_bounds(child)
-			if nested.size != Vector3.ZERO or nested.position != Vector3.ZERO:
-				bounds = nested if not found else bounds.merge(nested)
-				found = true
-	return bounds
-
-func _refresh_stats() -> void:
-	if stat_bars.is_empty():
-		return
-	var definition: Dictionary = {}
-	for weapon in tables.weapons:
-		if weapon.id == loadout.primary.weaponId:
-			definition = weapon.duplicate(true)
-	if definition.is_empty():
-		return
-	var mobility: float = definition.mobility
-	var damage: float = definition.damage
-	var far_range: float = definition.range.far
-	var vertical: float = definition.recoil.vertical
-	var horizontal: float = definition.recoil.horizontal
-	for attachment in tables.attachments:
-		if not attachment.id in loadout.primary.attachments:
-			continue
-		var modifiers: Dictionary = attachment.modifiers
-		mobility += modifiers.get("mobilityAdd", 0)
-		damage *= modifiers.get("damageMult", 1)
-		far_range *= modifiers.get("rangeMult", 1)
-		vertical *= modifiers.get("recoilMult", 1)
-		horizontal *= modifiers.get("recoilMult", 1)
-	var values := {"mobility": clampf(mobility, 1, 100), "range": clampf(far_range, 0, 200) / 2, "accuracy": clampf(100 - horizontal * 20, 0, 100), "damage": clampf(damage, 0, 120) * 0.83, "control": clampf(100 - vertical * 15, 0, 100)}
-	for key in values:
-		stat_bars[key].bar.value = values[key]
-		stat_bars[key].label.text = str(roundi(values[key]))
+	armory = Armory.new()
+	armory.tables = tables
+	armory.loadout = loadout
+	armory.current_slot = current_slot
+	armory.changed.connect(_persist_class)
+	armory.back_requested.connect(show_main_menu)
+	armory.slot_selected.connect(show_class_editor)
+	menu.add_child(armory)
 
 func _score_table(parent: Node, rows: Array, mode: String, blue: int, red: int) -> void:
 	_label(parent, "FREE-FOR-ALL" if mode == "ffa" or mode == "gungame" else "BLUE %d  —  %d RED" % [blue, red], 24, UI.GREEN, 800).horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -1005,9 +720,18 @@ func _score_table(parent: Node, rows: Array, mode: String, blue: int, red: int) 
 					cell.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 
 func show_scoreboard(is_visible: bool, rows: Array = [], blue: int = 0, red: int = 0, mode: String = "tdm") -> void:
-	scoreboard.visible = is_visible
 	if not is_visible:
+		scoreboard.hide()
 		return
+	var unchanged := scoreboard.visible and rows == _scoreboard_rows and blue == _scoreboard_blue and red == _scoreboard_red and mode == _scoreboard_mode and root.size == _scoreboard_size
+	scoreboard.show()
+	if unchanged:
+		return
+	_scoreboard_rows = rows.duplicate(true)
+	_scoreboard_blue = blue
+	_scoreboard_red = red
+	_scoreboard_mode = mode
+	_scoreboard_size = root.size
 	_clear(scoreboard)
 	scoreboard.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var center := CenterContainer.new()
@@ -1306,6 +1030,12 @@ func apply_screen_effect(kind: String, intensity: float, duration: float) -> voi
 func clear_screen_effects() -> void:
 	if is_instance_valid(effect_layer):
 		effect_layer.clear()
+	# The HUD merges state frame to frame; a scope held as a match ends must not
+	# show for the first frame of the next one.
+	if is_instance_valid(hud):
+		hud.state.erase("sight")
+		if hud.sight_overlay:
+			hud.sight_overlay.update_sight({})
 
 func set_touch_enabled(enabled: bool) -> void:
 	touch_enabled = enabled

@@ -222,6 +222,9 @@ static func create_material(record: Dictionary, _environment: Dictionary = {}, n
 	var opacity := float(record.get("opacity", 1.0))
 	if bool(record.get("transparent", false)):
 		flags |= 16
+	# The player's own weapon cuts a see-through window through its sight.
+	if bool(record.get("sightWindow", false)):
+		flags |= 32
 	var material := ShaderMaterial.new()
 	material.shader = _shader_variant(flags, band)
 	material.set_shader_parameter("albedo_color", Vector3(base.r, base.g, base.b))

@@ -187,7 +187,10 @@ func set_music_intensity(level: float) -> void:
 	_apply_dynamics(0.5)
 
 func set_music_duck(amount: float) -> void:
-	_duck = 1.0 - clampf(amount, 0.0, 1.0) * 0.7
+	var target := 1.0 - clampf(amount, 0.0, 1.0) * 0.7
+	if is_equal_approx(_duck, target):
+		return
+	_duck = target
 	_apply_dynamics(0.4)
 
 func pulse_music(amount: float = 0.35) -> void:
@@ -242,11 +245,13 @@ func _update_spatial_player(record:Dictionary)->void:
 func _update_music_mix() -> void:
 	if _lowpass != null:
 		_lowpass.cutoff_hz = _mix_filter
-	var gains:Dictionary=_layer_gains.duplicate()
-	gains.drums_hats=float(_layer_gains.drums) if _mix_level>0.6 else 0.0
-	gains.drums_kicks=float(_layer_gains.drums) if _mix_level>0.65 else 0.0
 	for stem in _music_players:
-		var gain: float = float(gains[stem]) * _mix_master * float(_catalog.sounds["music_" + stem].restoreGain)
+		var layer_gain := float(_layer_gains.get(stem, 0.0))
+		if stem == "drums_hats":
+			layer_gain = float(_layer_gains.drums) if _mix_level > 0.6 else 0.0
+		elif stem == "drums_kicks":
+			layer_gain = float(_layer_gains.drums) if _mix_level > 0.65 else 0.0
+		var gain := layer_gain * _mix_master * float(_catalog.sounds["music_" + stem].restoreGain)
 		_music_players[stem].volume_db = linear_to_db(maxf(0.00001, gain))
 
 func _exit_tree() -> void:

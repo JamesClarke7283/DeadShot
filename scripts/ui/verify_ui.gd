@@ -73,19 +73,63 @@ func _run() -> void:
 		ui.show_class_editor(slot)
 		await process_frame
 		verify(ui.current_slot == slot and ui.loadout.name == "Custom %d" % (slot + 1), "Class tab %d selects correct loadout" % (slot + 1))
-	verify(ui._weapon_choices().size() == 18, "All 18 primary/secondary weapons appear")
-	var primary: OptionButton = find_control(ui.menu, func(node): return node is OptionButton and node.get_selected_metadata() == "m4")
-	choose(primary, "ak12")
-	verify(ui.store.get_loadout(9).primary.weaponId == "ak12", "Primary weapon selector writes the selected class")
-	var lethal: OptionButton = find_control(ui.menu, func(node): return node is OptionButton and node.get_selected_metadata() == "frag")
-	choose(lethal, "semtex")
-	verify(ui.store.get_loadout(9).lethal == "semtex", "Lethal selector updates its own equipment field")
-	var perk: OptionButton = find_control(ui.menu, func(node): return node is OptionButton and node.get_selected_metadata() == "amped")
-	choose(perk, "tracker")
-	verify(ui.store.get_loadout(9).perks[2] == "tracker", "Perk selector updates the correct tier")
+	verify(ui.armory._weapon_choices().size() == 18 and ui.armory.weapon_grid.get_child_count() == 18, "All 18 weapons appear as Armory cards")
+	verify(find_control(ui.menu, func(node): return node is OptionButton) == null, "Armory uses interactive cards instead of dropdowns")
+	var primary: Button = find_control(ui.menu, func(node): return node is Button and node.name == "Weapon_ak12")
+	verify(primary != null and primary.tooltip_text.contains("damage"), "Weapon cards expose interactive descriptions")
+	var weapon_cards_complete := true
+	for card in ui.armory.weapon_grid.get_children():
+		weapon_cards_complete = weapon_cards_complete and find_control(card, func(node): return node is TextureRect and node.texture != null) != null and not card.tooltip_text.is_empty()
+	verify(weapon_cards_complete, "Every weapon card has a model thumbnail and description")
+	if primary: primary.pressed.emit()
+	verify(ui.store.get_loadout(9).primary.weaponId == "ak12", "Weapon card writes the selected class")
+	for slot in ui.armory.PRIMARY_SLOTS:
+		ui.armory.attachment_slot = slot
+		ui.armory._refresh_attachment_grid()
+		verify(ui.armory.attachment_grid.get_child_count() == ui.armory._slot_attachments(slot).size() + 1, "Attachment slot exposes every option: " + slot)
+		for card in ui.armory.attachment_grid.get_children():
+			verify(find_control(card, func(node): return node is TextureRect and node.texture != null) != null, "Attachment card has an icon: " + card.name)
+	var barrel_tab: Button = find_control(ui.menu, func(node): return node is Button and node.name == "AttachmentSlot_barrel")
+	if barrel_tab: barrel_tab.pressed.emit()
+	var suppressor: Button = find_control(ui.menu, func(node): return node is Button and node.name == "Attachment_suppressor")
+	verify(suppressor != null and suppressor.tooltip_text.contains("Silenced"), "Attachment cards show icons and effect descriptions")
+	if suppressor:
+		suppressor.mouse_entered.emit()
+		verify(ui.armory.detail_description.text.contains("Silenced") and ui.armory.detail_modifiers.text.contains("Range"), "Hovering an attachment explains its effect and modifiers")
+		suppressor.pressed.emit()
+	verify(ui.store.get_loadout(9).primary.attachments == ["suppressor"], "Attachment card replaces only its own slot")
+	var perk_count := 0
+	for row in ui.armory.perk_list.get_children():
+		if row is HBoxContainer: perk_count += row.get_child_count()
+	verify(perk_count == 9, "All nine perks are visible as icon cards")
+	for row in ui.armory.perk_list.get_children():
+		if row is HBoxContainer:
+			for card in row.get_children():
+				verify(find_control(card, func(node): return node is TextureRect and node.texture != null) != null and not card.tooltip_text.is_empty(), "Perk card has an icon and description: " + card.name)
+	var perk: Button = find_control(ui.menu, func(node): return node is Button and node.name == "Perk_tracker")
+	if perk: perk.pressed.emit()
+	verify(ui.store.get_loadout(9).perks[2] == "tracker", "Perk card updates the correct tier")
 	var custom_camo: ColorPickerButton = find_control(ui.menu, func(node): return node is ColorPickerButton)
 	custom_camo.color_changed.emit(Color("123456"))
 	verify(ui.store.get_loadout(9).camo == "#123456", "Custom camo color is persisted")
+	var kit_toggle: Button = find_control(ui.menu, func(node): return node is Button and node.name == "FieldKitToggle")
+	if kit_toggle: kit_toggle.pressed.emit()
+	var lethal_tab: Button = find_control(ui.menu, func(node): return node is Button and node.name == "KitMode_lethal")
+	if lethal_tab: lethal_tab.pressed.emit()
+	var lethal: Button = find_control(ui.menu, func(node): return node is Button and node.name == "Equipment_semtex")
+	if lethal: lethal.pressed.emit()
+	verify(ui.store.get_loadout(9).lethal == "semtex", "Field Kit equipment card updates its own slot")
+	var streak_tab: Button = find_control(ui.menu, func(node): return node is Button and node.name == "KitMode_streaks")
+	if streak_tab: streak_tab.pressed.emit()
+	var streak: Button = find_control(ui.menu, func(node): return node is Button and node.name == "Streak_sentry")
+	if streak: streak.pressed.emit()
+	verify(ui.store.get_loadout(9).streaks[0] == "sentry", "Scorestreak card updates the selected slot")
+	var upgrade_tab: Button = find_control(ui.menu, func(node): return node is Button and node.name == "KitMode_fieldUpgrade")
+	if upgrade_tab: upgrade_tab.pressed.emit()
+	var upgrade: Button = find_control(ui.menu, func(node): return node is Button and node.name == "Attachment_trophy")
+	if upgrade: upgrade.pressed.emit()
+	verify(ui.store.get_loadout(9).fieldUpgrade == "trophy", "Field upgrade card persists its selection")
+	verify(find_control(ui.menu, func(node): return node is OptionButton) == null, "Field Kit also uses cards instead of dropdowns")
 	ui.show_options()
 	await process_frame
 	var volume: HSlider = find_control(ui.menu, func(node): return node is HSlider and node.get_parent().get_parent().get_child(0).text == "MASTER VOLUME")
